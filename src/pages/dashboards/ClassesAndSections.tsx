@@ -220,32 +220,27 @@ export default function ClassesAndSections() {
 
     try {
       const classData = {
-        className: classNameInput.trim(),
-        section: sectionInput.trim(),
+        className: classNameInput.trim() || 'Class',
+        section: sectionInput.trim() || 'A',
         fullTitle,
         classTeacherId: selectedClassTeacherId || '',
         classTeacherName: classTeacherObj ? classTeacherObj.name : 'Unassigned',
-        subjectTeachers: formattedSubjectTeachers,
-        studentIds: selectedStudentIds,
-        institutionId: targetInstId,
-        updatedAt: serverTimestamp(),
-        ...(!editingClass && { createdAt: serverTimestamp() })
+        subjectTeachers: formattedSubjectTeachers || [],
+        studentIds: selectedStudentIds || [],
+        institutionId: targetInstId || 'default_institution',
+        updatedAt: new Date().toISOString(),
+        createdAt: editingClass?.createdAt || new Date().toISOString()
       };
 
       await setDoc(classDocRef, classData, { merge: true });
 
-      // Update student profiles assignedClass field
+      // Update student profiles assignedClass field safely with setDoc merge
       if (selectedStudentIds.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          selectedStudentIds.forEach(stId => {
-            const stRef = doc(db, 'users', stId);
-            batch.update(stRef, { assignedClass: fullTitle, classId: classDocRef.id });
-          });
-          await batch.commit();
-        } catch (studentErr) {
-          console.warn("Warning: Could not batch update all student profiles:", studentErr);
-        }
+        await Promise.allSettled(
+          selectedStudentIds.map(stId =>
+            setDoc(doc(db, 'users', stId), { assignedClass: fullTitle, classId: classDocRef.id }, { merge: true })
+          )
+        );
       }
 
       // Also update teachers assigned classes string if teacher assigned
@@ -256,12 +251,13 @@ export default function ClassesAndSections() {
       });
 
       for (const tId of involvedTeacherIds) {
+        if (!tId) continue;
         const teacherObj = teachers.find(t => t.id === tId);
         if (teacherObj) {
           const tRef = doc(db, 'users', tId);
-          updateDoc(tRef, {
+          await setDoc(tRef, {
             assignedClasses: teacherObj.subject ? `${fullTitle} (${teacherObj.subject})` : fullTitle
-          }).catch(() => {});
+          }, { merge: true });
         }
       }
 
