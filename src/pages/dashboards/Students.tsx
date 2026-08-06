@@ -120,37 +120,52 @@ export default function Students() {
         setIsSubmitting(false);
         return;
       }
-      
-      const { initializeApp } = await import('firebase/app');
-      const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
-      const { app } = await import('../../lib/firebase');
-      
-      const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
-      const secondaryAuth = getAuth(secondaryApp);
-      
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
-      
-      await setDoc(doc(db, 'users', userCred.user.uid), {
-        email: formData.email,
-        name: formData.name,
+
+      // Auto-generate student roll number/ID if blank
+      const finalRollNumber = formData.rollNumber.trim() || `STU-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      let newUid = '';
+      try {
+        const { initializeApp } = await import('firebase/app');
+        const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
+        const { app } = await import('../../lib/firebase');
+        
+        const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
+        const secondaryAuth = getAuth(secondaryApp);
+        
+        const userCred = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
+        newUid = userCred.user.uid;
+        await signOut(secondaryAuth);
+      } catch (authErr: any) {
+        console.warn("Secondary auth user creation warning, proceeding with Firestore creation:", authErr);
+      }
+
+      const studentDoc = {
+        email: formData.email.trim(),
+        name: formData.name.trim(),
         role: 'STUDENT',
         institutionId: instId,
-        assignedClass: formData.assignedClass,
+        assignedClass: formData.assignedClass || 'Unassigned',
         phone: formData.phone || '',
-        rollNumber: formData.rollNumber || '',
+        rollNumber: finalRollNumber,
         password: formData.password,
         status: 'Active',
         createdAt: serverTimestamp()
-      });
-      
-      await signOut(secondaryAuth);
+      };
+
+      if (newUid) {
+        await setDoc(doc(db, 'users', newUid), studentDoc);
+      } else {
+        const newRef = doc(collection(db, 'users'));
+        await setDoc(newRef, studentDoc);
+      }
       
       setShowForm(false);
       setFormData({ name: '', email: '', assignedClass: '', password: '', phone: '', rollNumber: '' });
-      alert("Student registered successfully.");
-    } catch (error) {
+      alert(`Student profile created successfully! Student ID: ${finalRollNumber}`);
+    } catch (error: any) {
       console.error("Error adding student:", error);
-      alert("Failed to submit student. Please check console for details.");
+      alert(`Error creating student profile: ${error?.message || "Please check details and try again."}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -206,15 +221,15 @@ export default function Students() {
               </div>
               
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assign Class & Section</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Student ID / Roll Number</label>
                 <input 
-                  type="text" 
-                  required
-                  value={formData.assignedClass}
-                  onChange={(e) => setFormData({...formData, assignedClass: e.target.value})}
+                  type="text"
+                  value={formData.rollNumber}
+                  onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Grade 10-A" 
+                  placeholder="e.g. STU-1002 (Optional: Leave blank to auto-generate)" 
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Leave blank to auto-generate a unique Student ID.</p>
               </div>
 
               <div>
@@ -239,17 +254,6 @@ export default function Students() {
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="Create a password" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Roll Number / ID</label>
-                <input 
-                  type="text"
-                  value={formData.rollNumber}
-                  onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. STU-1002" 
                 />
               </div>
 

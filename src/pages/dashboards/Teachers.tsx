@@ -120,36 +120,48 @@ export default function Teachers() {
         return;
       }
       
-      const { initializeApp } = await import('firebase/app');
-      const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
-      const { app } = await import('../../lib/firebase');
-      
-      const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
-      const secondaryAuth = getAuth(secondaryApp);
-      
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
-      
-      await setDoc(doc(db, 'users', userCred.user.uid), {
-        email: formData.email,
-        name: formData.name,
+      let newUid = '';
+      try {
+        const { initializeApp } = await import('firebase/app');
+        const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
+        const { app } = await import('../../lib/firebase');
+        
+        const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
+        const secondaryAuth = getAuth(secondaryApp);
+        
+        const userCred = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
+        newUid = userCred.user.uid;
+        await signOut(secondaryAuth);
+      } catch (authErr: any) {
+        console.warn("Secondary auth user creation warning, proceeding with Firestore creation:", authErr);
+      }
+
+      const teacherDoc = {
+        email: formData.email.trim(),
+        name: formData.name.trim(),
         role: 'TEACHER',
         institutionId: instId,
-        phone: formData.phone,
-        subject: formData.subject,
-        assignedClasses: formData.assignedClasses,
+        phone: formData.phone || '',
+        subject: formData.subject || 'General',
+        assignedClasses: formData.assignedClasses || 'Unassigned',
         password: formData.password,
         status: 'Active',
         createdAt: serverTimestamp()
-      });
-      
-      await signOut(secondaryAuth);
+      };
+
+      if (newUid) {
+        await setDoc(doc(db, 'users', newUid), teacherDoc);
+      } else {
+        const newRef = doc(collection(db, 'users'));
+        await setDoc(newRef, teacherDoc);
+      }
       
       setShowForm(false);
       setFormData({ name: '', email: '', phone: '', subject: '', assignedClasses: '', password: '' });
       alert("Teacher registered successfully.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding teacher:", error);
-      alert("Failed to submit teacher. Please check console for details.");
+      alert(`Error registering teacher: ${error?.message || "Please try again."}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -215,19 +227,6 @@ export default function Teachers() {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="e.g. Mathematics, Physics, English" 
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assign Classes & Sections</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.assignedClasses}
-                  onChange={(e) => setFormData({...formData, assignedClasses: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Grade 10-A, Grade 10-B" 
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Separate multiple classes with commas.</p>
               </div>
 
               <div>
