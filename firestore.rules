@@ -50,6 +50,15 @@ service cloud.firestore {
     match /notices/{noticeId} {
       allow read, write: if isSignedIn();
     }
+    match /homeworks/{homeworkId} {
+      allow read, write: if isSignedIn();
+    }
+    match /attendance/{attId} {
+      allow read, write: if isSignedIn();
+    }
+    match /submissions/{subId} {
+      allow read, write: if isSignedIn();
+    }
     match /events/{eventId} {
       allow read, write: if isSignedIn();
     }

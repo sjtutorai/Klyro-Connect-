@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../../components/ui';
-import { MessageSquareWarning, Plus, Search, Filter, AlertCircle, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { MessageSquareWarning, Plus, Search, Filter, Clock, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 type Complaint = {
@@ -15,6 +15,9 @@ type Complaint = {
   userId: string;
   userName: string;
   description: string;
+  isAnonymous?: boolean;
+  visibility?: string;
+  institutionId?: string;
 };
 
 export default function Complaints() {
@@ -23,22 +26,36 @@ export default function Complaints() {
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [formData, setFormData] = useState({
     title: '',
     category: 'Academic',
     priority: 'Low',
-    description: ''
+    description: '',
+    isAnonymous: false,
+    visibility: 'Authorities' // Authorities or Public
   });
 
   useEffect(() => {
     if (!user) return;
-
-    let q = query(collection(db, 'complaints'), orderBy('createdAt', 'desc'));
     
-    // If student or teacher, only show their own complaints
-    if (['STUDENT', 'TEACHER'].includes(user.role)) {
-      q = query(collection(db, 'complaints'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    let constraints: any[] = [];
+    if (user.role === 'INSTITUTION' && user.institutionId) {
+      constraints.push(where('institutionId', '==', user.institutionId));
+    } else if (user.role === 'TEACHER') {
+      // Teachers see complaints in their institution that are public, or their own, or assigned to them (for now just all public + own)
+      // Firestore 'or' is tricky, let's just fetch institution complaints and filter locally for simplicity, or just fetch their own if they are just logging them.
+      // Wait, the prompt says "Students can add the Complaint... as public or selected authorities".
+      // Let's just fetch all for the institution and filter client-side for Teachers and Students.
+      if (user.institutionId) constraints.push(where('institutionId', '==', user.institutionId));
+    } else if (user.role === 'STUDENT') {
+      if (user.institutionId) constraints.push(where('institutionId', '==', user.institutionId));
+    }
+    
+    let q = query(collection(db, 'complaints'), ...constraints, orderBy('createdAt', 'desc'));
+    
+    // Fallback if no institutionId (e.g. SUPER_ADMIN)
+    if (user.role === 'SUPER_ADMIN') {
+      q = query(collection(db, 'complaints'), orderBy('createdAt', 'desc'));
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -46,7 +63,17 @@ export default function Complaints() {
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as Complaint);
       });
-      setComplaintsList(list);
+      
+      // Client-side filtering
+      let filtered = list;
+      if (user.role === 'TEACHER' || user.role === 'STUDENT') {
+        filtered = list.filter(c => 
+          c.userId === user.id || 
+          c.visibility === 'Public' ||
+          (user.role === 'TEACHER' && c.visibility === 'Authorities')
+        );
+      }
+      setComplaintsList(filtered);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching complaints:", error);
@@ -66,16 +93,28 @@ export default function Complaints() {
         ...formData,
         status: 'Pending',
         userId: user.id,
-        userName: user.name,
+        userName: formData.isAnonymous ? 'Anonymous' : user.name,
+        institutionId: user.institutionId || '',
         createdAt: serverTimestamp()
       });
       setShowForm(false);
-      setFormData({ title: '', category: 'Academic', priority: 'Low', description: '' });
+      setFormData({ title: '', category: 'Academic', priority: 'Low', description: '', isAnonymous: false, visibility: 'Authorities' });
     } catch (error) {
       console.error("Error adding complaint:", error);
       alert("Failed to submit complaint.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this complaint?')) {
+      try {
+        await deleteDoc(doc(db, 'complaints', id));
+      } catch (error) {
+        console.error("Error deleting complaint:", error);
+        alert("Failed to delete complaint.");
+      }
     }
   };
 
@@ -111,7 +150,7 @@ export default function Complaints() {
         title="Complaints & Requests" 
         description="Manage, track, and resolve campus issues."
         action={
-          ['STUDENT', 'TEACHER'].includes(user?.role || '') && (
+          ['STUDENT', 'TEACHER', 'INSTITUTION'].includes(user?.role || '') && (
             <button 
               onClick={() => setShowForm(!showForm)}
               className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition shadow-sm"
@@ -170,6 +209,31 @@ export default function Complaints() {
                   <option>Urgent</option>
                 </select>
               </div>
+              
+              {user?.role === 'STUDENT' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Visibility</label>
+                  <select 
+                    value={formData.visibility}
+                    onChange={(e) => setFormData({...formData, visibility: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none bg-white"
+                  >
+                    <option value="Authorities">Selected Authorities</option>
+                    <option value="Public">Public</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <input 
+                  type="checkbox" 
+                  id="isAnonymous"
+                  checked={formData.isAnonymous}
+                  onChange={(e) => setFormData({...formData, isAnonymous: e.target.checked})}
+                  className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
+                />
+                <label htmlFor="isAnonymous" className="text-sm font-medium text-slate-700">Submit Anonymously</label>
+              </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
@@ -212,7 +276,7 @@ export default function Complaints() {
               </button>
             </div>
           </div>
-
+          
           <div className="overflow-x-auto">
             {isLoading ? (
               <div className="p-12 flex justify-center text-indigo-600">
@@ -222,7 +286,6 @@ export default function Complaints() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Details</th>
                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
@@ -232,15 +295,16 @@ export default function Complaints() {
                 <tbody className="divide-y divide-slate-100">
                   {complaintsList.map((complaint) => (
                     <tr key={complaint.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-900">{complaint.id.slice(0,6)}...</span>
-                      </td>
                       <td className="px-6 py-4 min-w-[300px]">
                         <p className="text-sm font-bold text-slate-900 mb-1">{complaint.title}</p>
+                        <p className="text-xs text-slate-500 mb-2">{complaint.description.substring(0, 50)}...</p>
                         <div className="flex items-center gap-3 text-xs text-slate-500">
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDate(complaint.createdAt)}</span>
                           <span className={`px-2 py-0.5 rounded-md font-semibold ${getPriorityColor(complaint.priority)}`}>
                             {complaint.priority}
+                          </span>
+                          <span className="font-medium text-indigo-600">
+                            By {complaint.isAnonymous ? 'Anonymous' : complaint.userName}
                           </span>
                         </div>
                       </td>
@@ -253,13 +317,24 @@ export default function Complaints() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-indigo-600 hover:text-indigo-900">View</button>
+                        <div className="flex justify-end items-center gap-3">
+                          <button className="text-indigo-600 hover:text-indigo-900">View</button>
+                          {['SUPER_ADMIN', 'INSTITUTION'].includes(user?.role || '') && (
+                            <button 
+                              onClick={() => handleDelete(complaint.id)}
+                              className="text-rose-600 hover:text-rose-900 p-1 rounded-md hover:bg-rose-50"
+                              title="Delete Complaint"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {complaintsList.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
                         No complaints found.
                       </td>
                     </tr>

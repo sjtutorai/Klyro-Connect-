@@ -8,6 +8,12 @@ import SuperAdminDashboard from './pages/dashboards/SuperAdminDashboard';
 import InstitutionDashboard from './pages/dashboards/InstitutionDashboard';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
+import TeacherStudents from './pages/dashboards/TeacherStudents';
+import TeacherHomework from './pages/dashboards/TeacherHomework';
+import StudentHomework from './pages/dashboards/StudentHomework';
+import TeacherAttendance from './pages/dashboards/TeacherAttendance';
+import StudentAttendance from './pages/dashboards/StudentAttendance';
+import Timetable from './pages/dashboards/Timetable';
 import Complaints from './pages/dashboards/Complaints';
 import UnderConstruction from './pages/dashboards/UnderConstruction';
 

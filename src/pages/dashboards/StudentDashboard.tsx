@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, StatCard } from '../../components/ui';
 import { BookOpen, CalendarCheck, Clock, Bell, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +16,7 @@ const attendanceData = [
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const stats = useFirestoreStats();
 
   return (
@@ -36,7 +38,7 @@ export default function StudentDashboard() {
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-slate-900">Pending Homework</h3>
-              <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View All</button>
+              <button onClick={() => navigate('/dashboard/student/homework')} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View All</button>
             </div>
             <div className="space-y-4">
               {[
@@ -67,6 +69,7 @@ export default function StudentDashboard() {
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-slate-900">Attendance This Week</h3>
+              <button onClick={() => navigate('/dashboard/student/attendance')} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View Details</button>
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -106,7 +109,7 @@ export default function StudentDashboard() {
             ))}
           </div>
           
-          <button className="w-full mt-6 py-3 text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+          <button onClick={() => navigate('/dashboard/notices')} className="w-full mt-6 py-3 text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
             View All Notices
           </button>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, StatCard } from '../../components/ui';
 import { Users, BookOpen, CalendarCheck, Clock, CheckCircle2, MessageSquareWarning } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -6,6 +7,7 @@ import { useFirestoreStats } from '../../lib/useFirestoreStats';
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const stats = useFirestoreStats();
 
   return (
@@ -26,6 +28,7 @@ export default function TeacherDashboard() {
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-slate-900">Today's Timetable</h3>
+            <button onClick={() => navigate('/dashboard/teacher/timetable')} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View Full Schedule</button>
           </div>
           <div className="space-y-4">
             {[
@@ -65,19 +68,19 @@ export default function TeacherDashboard() {
             <h3 className="text-lg font-bold text-slate-900">Quick Actions</h3>
           </div>
           <div className="grid grid-cols-2 gap-4 flex-1">
-            <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
+            <button onClick={() => navigate('/dashboard/teacher/attendance')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
               <CalendarCheck className="w-8 h-8" />
               <span className="font-medium text-sm">Mark Attendance</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
+            <button onClick={() => navigate('/dashboard/teacher/homework')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
               <BookOpen className="w-8 h-8" />
               <span className="font-medium text-sm">Assign Homework</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
+            <button onClick={() => navigate('/dashboard/complaints')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
               <MessageSquareWarning className="w-8 h-8" />
               <span className="font-medium text-sm">View Complaints</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
+            <button onClick={() => navigate('/dashboard/teacher/students')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-slate-100 text-slate-700">
               <Users className="w-8 h-8" />
               <span className="font-medium text-sm">Student Directory</span>
             </button>
