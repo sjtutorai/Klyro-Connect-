@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
-import { GraduationCap, Plus, Search, MoreVertical, Loader2, Edit, Trash2 } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, setDoc, where } from 'firebase/firestore';
+import { PageHeader, ConfirmModal } from '../../components/ui';
+import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check } from 'lucide-react';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -10,6 +10,9 @@ type Student = {
   name: string;
   email: string;
   assignedClass: string;
+  section?: string;
+  rollNumber?: string;
+  phone?: string;
   password?: string;
   status: string;
   createdAt: any;
@@ -21,45 +24,74 @@ export default function Students() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     assignedClass: '',
-    password: ''
+    password: '',
+    phone: '',
+    rollNumber: ''
   });
 
-  useEffect(() => {
-    const handleClickOutside = () => setActiveDropdown(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  const confirmDelete = async () => {
+    if (!deleteStudentId) return;
+    const targetId = deleteStudentId;
+    setStudents(prev => prev.filter(s => s.id !== targetId));
+    setDeleteStudentId(null);
+    try {
+      await deleteDoc(doc(db, 'users', targetId));
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      alert("Failed to delete student from database.");
+    }
+  };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this student?')) {
-      try {
-        await deleteDoc(doc(db, 'users', id));
-      } catch (error) {
-        console.error("Error deleting student:", error);
-        alert("Failed to delete student.");
-      }
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setIsSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'users', editingStudent.id), {
+        name: editingStudent.name,
+        assignedClass: editingStudent.assignedClass,
+        phone: editingStudent.phone || '',
+        rollNumber: editingStudent.rollNumber || '',
+        status: editingStudent.status || 'Active'
+      });
+      alert("Student details and Class/Section assignment updated!");
+      setEditingStudent(null);
+    } catch (error) {
+      console.error("Error updating student:", error);
+      alert("Failed to update student.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   useEffect(() => {
-    if (!user?.institutionId) return;
+    if (!user) return;
     
-    const q = query(
-      collection(db, 'users'), 
-      where('role', '==', 'STUDENT'),
-      where('institutionId', '==', user.institutionId),
-      orderBy('createdAt', 'desc')
-    );
+    let q;
+    const targetInstId = user.institutionId || (user.role === 'INSTITUTION' ? user.id : null);
+    if (user.role === 'SUPER_ADMIN' || !targetInstId) {
+      q = query(collection(db, 'users'), where('role', '==', 'STUDENT'));
+    } else {
+      q = query(collection(db, 'users'), where('role', '==', 'STUDENT'), where('institutionId', '==', targetInstId));
+    }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Student[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as Student);
+      });
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
       });
       setStudents(list);
       setIsLoading(false);
@@ -73,7 +105,8 @@ export default function Students() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.institutionId) return;
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId) return;
     
     setIsSubmitting(true);
     try {
@@ -101,9 +134,11 @@ export default function Students() {
         email: formData.email,
         name: formData.name,
         role: 'STUDENT',
-        institutionId: user.institutionId,
+        institutionId: instId,
         assignedClass: formData.assignedClass,
-        password: formData.password, // Stored for display purposes per user request
+        phone: formData.phone || '',
+        rollNumber: formData.rollNumber || '',
+        password: formData.password,
         status: 'Active',
         createdAt: serverTimestamp()
       });
@@ -111,7 +146,7 @@ export default function Students() {
       await signOut(secondaryAuth);
       
       setShowForm(false);
-      setFormData({ name: '', email: '', assignedClass: '', password: '' });
+      setFormData({ name: '', email: '', assignedClass: '', password: '', phone: '', rollNumber: '' });
       alert("Student registered successfully.");
     } catch (error) {
       console.error("Error adding student:", error);
@@ -121,15 +156,21 @@ export default function Students() {
     }
   };
 
+  const filteredStudents = students.filter(s =>
+    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.assignedClass?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="max-w-7xl mx-auto">
       <PageHeader 
-        title="Students" 
-        description="Manage students in your institution"
+        title="Students & Class Assignments" 
+        description="Assign classes, sections and manage enrolled students."
         action={
           <button 
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm"
           >
             <Plus className="w-5 h-5" />
             Add Student
@@ -155,14 +196,14 @@ export default function Students() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Assign Class & Section</label>
                 <input 
                   type="text" 
                   required
                   value={formData.assignedClass}
                   onChange={(e) => setFormData({...formData, assignedClass: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. Class 10A" 
+                  placeholder="e.g. Class 10-A or Class 9-B" 
                 />
               </div>
 
@@ -190,6 +231,28 @@ export default function Students() {
                   placeholder="Create a password" 
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Roll Number / ID</label>
+                <input 
+                  type="text"
+                  value={formData.rollNumber}
+                  onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  placeholder="e.g. STU-1002" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Parent / Contact Phone</label>
+                <input 
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  placeholder="+1 (555) 000-0000" 
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -205,14 +268,87 @@ export default function Students() {
         </div>
       )}
 
+      {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-xl animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              Edit Student & Class Assignment
+            </h2>
+            <form onSubmit={handleUpdateStudent} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Student Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingStudent.name}
+                  onChange={e => setEditingStudent({...editingStudent, name: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Class & Section</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingStudent.assignedClass}
+                  onChange={e => setEditingStudent({...editingStudent, assignedClass: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  placeholder="e.g. Class 10-A, Class 9-B"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Roll Number / Student ID</label>
+                <input 
+                  type="text" 
+                  value={editingStudent.rollNumber || ''}
+                  onChange={e => setEditingStudent({...editingStudent, rollNumber: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  placeholder="e.g. STU-1002"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contact Phone</label>
+                <input 
+                  type="text" 
+                  value={editingStudent.phone || ''}
+                  onChange={e => setEditingStudent({...editingStudent, phone: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingStudent(null)}
+                  className="px-5 py-2 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 flex items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="relative w-full sm:w-96">
             <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
-              placeholder="Search students..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search students by name, email, or class..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
             />
           </div>
         </div>
@@ -223,9 +359,9 @@ export default function Students() {
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact & Login</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Class</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Class & Section</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -236,7 +372,7 @@ export default function Students() {
                     Loading students...
                   </td>
                 </tr>
-              ) : students.map((student) => (
+              ) : filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
@@ -245,16 +381,18 @@ export default function Students() {
                       </div>
                       <div>
                         <div className="text-sm font-medium text-slate-900">{student.name}</div>
-                        <div className="text-sm text-slate-500">ID: {student.id.slice(0, 8)}</div>
+                        <div className="text-xs text-slate-500 font-mono">Roll: {student.rollNumber || student.id.slice(0, 8)}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">{student.email}</div>
-                    <div className="text-sm text-slate-500 font-mono">Pwd: {student.password || '******'}</div>
+                    <div className="text-xs text-slate-500 font-mono">Pwd: {student.password || '******'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">{student.assignedClass}</div>
+                    <span className="px-3 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold">
+                      {student.assignedClass || 'Unassigned'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
@@ -265,21 +403,31 @@ export default function Students() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => handleDelete(student.id)}
-                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                      title="Delete Student"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => setEditingStudent(student)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                        title="Edit Student & Class"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span>Edit</span>
+                      </button>
+                      <button 
+                        onClick={() => setDeleteStudentId(student.id)}
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                        title="Delete Student"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {!isLoading && students.length === 0 && (
+              {!isLoading && filteredStudents.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    No students found. Add your first student above.
+                    No students found matching your search.
                   </td>
                 </tr>
               )}
@@ -287,6 +435,15 @@ export default function Students() {
           </table>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteStudentId}
+        title="Delete Student"
+        message="Are you sure you want to delete this student account? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteStudentId(null)}
+      />
     </div>
   );
 }
+

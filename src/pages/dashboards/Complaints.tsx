@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
+import { PageHeader, ConfirmModal } from '../../components/ui';
 import { MessageSquareWarning, Plus, Search, Filter, Clock, Loader2, Trash2, Sparkles, UserX, Shield, Globe, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -103,14 +103,18 @@ export default function Complaints() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this complaint?')) {
-      try {
-        await deleteDoc(doc(db, 'complaints', id));
-      } catch (error) {
-        console.error("Error deleting complaint:", error);
-        alert("Failed to delete complaint.");
-      }
+  const [deleteComplaintId, setDeleteComplaintId] = useState<string | null>(null);
+
+  const confirmDeleteComplaint = async () => {
+    if (!deleteComplaintId) return;
+    const targetId = deleteComplaintId;
+    setComplaintsList(prev => prev.filter(c => c.id !== targetId));
+    setDeleteComplaintId(null);
+    try {
+      await deleteDoc(doc(db, 'complaints', targetId));
+    } catch (error) {
+      console.error("Error deleting complaint:", error);
+      alert("Failed to delete complaint.");
     }
   };
 
@@ -435,11 +439,12 @@ export default function Complaints() {
                         <div className="flex justify-end items-center gap-3">
                           {['SUPER_ADMIN', 'INSTITUTION'].includes(user?.role || '') && (
                             <button 
-                              onClick={() => handleDelete(complaint.id)}
-                              className="text-rose-600 hover:text-rose-900 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                              onClick={() => setDeleteComplaintId(complaint.id)}
+                              className="text-rose-600 hover:text-rose-900 p-1.5 rounded-lg hover:bg-rose-50 transition flex items-center gap-1 text-xs font-semibold"
                               title="Delete Complaint"
                             >
                               <Trash2 className="w-4 h-4" />
+                              <span>Delete</span>
                             </button>
                           )}
                         </div>
@@ -459,6 +464,14 @@ export default function Complaints() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!deleteComplaintId}
+        title="Delete Complaint"
+        message="Are you sure you want to delete this complaint record? This action cannot be undone."
+        onConfirm={confirmDeleteComplaint}
+        onCancel={() => setDeleteComplaintId(null)}
+      />
     </div>
   );
 }

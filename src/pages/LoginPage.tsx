@@ -54,7 +54,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 tracking-tight">
-          Sign in to Klyro Connect
+          Sign in to VAKS AI
         </h2>
         <p className="mt-2 text-center text-sm text-slate-600">
           Or <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">request institution access</a>

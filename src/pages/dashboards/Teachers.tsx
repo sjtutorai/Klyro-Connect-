@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
-import { Users, Plus, Search, MoreVertical, Loader2, Edit, Trash2 } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, setDoc, where } from 'firebase/firestore';
+import { PageHeader, ConfirmModal } from '../../components/ui';
+import { Users, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check } from 'lucide-react';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,7 +22,10 @@ export default function Teachers() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [deleteTeacherId, setDeleteTeacherId] = useState<string | null>(null);
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,37 +34,60 @@ export default function Teachers() {
     password: ''
   });
 
-  useEffect(() => {
-    const handleClickOutside = () => setActiveDropdown(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  const confirmDelete = async () => {
+    if (!deleteTeacherId) return;
+    const targetId = deleteTeacherId;
+    setTeachers(prev => prev.filter(t => t.id !== targetId));
+    setDeleteTeacherId(null);
+    try {
+      await deleteDoc(doc(db, 'users', targetId));
+    } catch (error) {
+      console.error("Error deleting teacher:", error);
+      alert("Failed to delete teacher from database.");
+    }
+  };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      try {
-        await deleteDoc(doc(db, 'users', id));
-      } catch (error) {
-        console.error("Error deleting teacher:", error);
-        alert("Failed to delete teacher.");
-      }
+  const handleUpdateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    setIsSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'users', editingTeacher.id), {
+        name: editingTeacher.name,
+        assignedClasses: editingTeacher.assignedClasses,
+        phone: editingTeacher.phone,
+        status: editingTeacher.status || 'Active'
+      });
+      alert('Teacher details and assigned classes updated successfully!');
+      setEditingTeacher(null);
+    } catch (error) {
+      console.error("Error updating teacher:", error);
+      alert("Failed to update teacher.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   useEffect(() => {
-    if (!user?.institutionId) return;
+    if (!user) return;
     
-    const q = query(
-      collection(db, 'users'), 
-      where('role', '==', 'TEACHER'),
-      where('institutionId', '==', user.institutionId),
-      orderBy('createdAt', 'desc')
-    );
+    let q;
+    const targetInstId = user.institutionId || (user.role === 'INSTITUTION' ? user.id : null);
+    if (user.role === 'SUPER_ADMIN' || !targetInstId) {
+      q = query(collection(db, 'users'), where('role', '==', 'TEACHER'));
+    } else {
+      q = query(collection(db, 'users'), where('role', '==', 'TEACHER'), where('institutionId', '==', targetInstId));
+    }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Teacher[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as Teacher);
+      });
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
       });
       setTeachers(list);
       setIsLoading(false);
@@ -75,7 +101,8 @@ export default function Teachers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.institutionId) return;
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId) return;
     
     setIsSubmitting(true);
     try {
@@ -103,10 +130,10 @@ export default function Teachers() {
         email: formData.email,
         name: formData.name,
         role: 'TEACHER',
-        institutionId: user.institutionId,
+        institutionId: instId,
         phone: formData.phone,
         assignedClasses: formData.assignedClasses,
-        password: formData.password, // Stored for display purposes per user request
+        password: formData.password,
         status: 'Active',
         createdAt: serverTimestamp()
       });
@@ -124,15 +151,21 @@ export default function Teachers() {
     }
   };
 
+  const filteredTeachers = teachers.filter(t => 
+    t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.assignedClasses?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="max-w-7xl mx-auto">
       <PageHeader 
-        title="Teachers" 
-        description="Manage teachers in your institution"
+        title="Teachers & Class Assignments" 
+        description="Assign classes, sections and manage teachers in your institution."
         action={
           <button 
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm"
           >
             <Plus className="w-5 h-5" />
             Add Teacher
@@ -158,15 +191,16 @@ export default function Teachers() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Assigned Classes</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Assign Classes & Sections</label>
                 <input 
                   type="text" 
                   required
                   value={formData.assignedClasses}
                   onChange={(e) => setFormData({...formData, assignedClasses: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. Class 10A, Class 9B" 
+                  placeholder="e.g. Class 10-A, Class 10-B, Grade 9 Science" 
                 />
+                <p className="text-xs text-slate-500 mt-1">Separate multiple classes/sections with commas.</p>
               </div>
 
               <div>
@@ -220,14 +254,78 @@ export default function Teachers() {
         </div>
       )}
 
+      {/* Edit Modal */}
+      {editingTeacher && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-xl animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-600" />
+              Edit Teacher & Assigned Classes
+            </h2>
+            <form onSubmit={handleUpdateTeacher} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Teacher Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingTeacher.name}
+                  onChange={e => setEditingTeacher({...editingTeacher, name: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Classes & Sections</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingTeacher.assignedClasses}
+                  onChange={e => setEditingTeacher({...editingTeacher, assignedClasses: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  placeholder="e.g. Class 10-A, Class 10-B"
+                />
+                <p className="text-xs text-slate-500 mt-1">This determines which students the teacher manages.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <input 
+                  type="text" 
+                  value={editingTeacher.phone}
+                  onChange={e => setEditingTeacher({...editingTeacher, phone: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingTeacher(null)}
+                  className="px-5 py-2 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 flex items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="relative w-full sm:w-96">
             <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
-              placeholder="Search teachers..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search teachers by name, email, or class..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
             />
           </div>
         </div>
@@ -238,9 +336,9 @@ export default function Teachers() {
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Teacher</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact & Login</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Classes</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned Classes & Sections</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -251,7 +349,7 @@ export default function Teachers() {
                     Loading teachers...
                   </td>
                 </tr>
-              ) : teachers.map((teacher) => (
+              ) : filteredTeachers.map((teacher) => (
                 <tr key={teacher.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
@@ -260,16 +358,23 @@ export default function Teachers() {
                       </div>
                       <div>
                         <div className="text-sm font-medium text-slate-900">{teacher.name}</div>
-                        <div className="text-sm text-slate-500">ID: {teacher.id.slice(0, 8)}</div>
+                        <div className="text-xs text-slate-500">ID: {teacher.id.slice(0, 8)}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">{teacher.email}</div>
-                    <div className="text-sm text-slate-500 font-mono">Pwd: {teacher.password || '******'}</div>
+                    <div className="text-xs text-slate-500 font-mono">Pwd: {teacher.password || '******'}</div>
+                    <div className="text-xs text-slate-500">{teacher.phone}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">{teacher.assignedClasses}</div>
+                    <div className="flex flex-wrap gap-1 max-w-xs">
+                      {(teacher.assignedClasses || 'Unassigned').split(',').map((cls, idx) => (
+                        <span key={idx} className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold">
+                          {cls.trim()}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
@@ -280,21 +385,31 @@ export default function Teachers() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => handleDelete(teacher.id)}
-                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                      title="Delete Teacher"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => setEditingTeacher(teacher)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                        title="Edit Teacher & Classes"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span>Edit</span>
+                      </button>
+                      <button 
+                        onClick={() => setDeleteTeacherId(teacher.id)}
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                        title="Delete Teacher"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {!isLoading && teachers.length === 0 && (
+              {!isLoading && filteredTeachers.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    No teachers found. Add your first teacher above.
+                    No teachers found matching your search.
                   </td>
                 </tr>
               )}
@@ -302,6 +417,15 @@ export default function Teachers() {
           </table>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteTeacherId}
+        title="Delete Teacher"
+        message="Are you sure you want to delete this teacher account? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTeacherId(null)}
+      />
     </div>
   );
 }
+

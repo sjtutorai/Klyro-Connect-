@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
-import { Bell, Plus, Loader2, Tag, Calendar as CalendarIcon } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
+import { PageHeader, ConfirmModal } from '../../components/ui';
+import { Bell, Plus, Loader2, Tag, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,6 +22,7 @@ export default function Notices() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -29,24 +30,25 @@ export default function Notices() {
     type: 'Academic'
   });
 
-  const canAddNotices = user?.role === 'INSTITUTION' || user?.role === 'TEACHER';
+  const canAddNotices = user?.role === 'INSTITUTION' || user?.role === 'TEACHER' || user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
-    if (!user?.institutionId && user?.role !== 'SUPER_ADMIN') return;
+    if (!user) return;
     
-    const constraints: any[] = [];
-    if (user?.institutionId) {
-      constraints.push(where('institutionId', '==', user.institutionId));
+    let q;
+    const targetInstId = user.institutionId || (user.role === 'INSTITUTION' ? user.id : null);
+    if (user.role === 'SUPER_ADMIN' || !targetInstId) {
+      q = query(collection(db, 'notices'));
+    } else {
+      q = query(collection(db, 'notices'), where('institutionId', '==', targetInstId));
     }
-    constraints.push(orderBy('date', 'desc'));
-    
-    const q = query(collection(db, 'notices'), ...constraints);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: NoticeData[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as NoticeData);
       });
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       setNotices(list);
       setIsLoading(false);
     }, (error) => {
@@ -59,15 +61,16 @@ export default function Notices() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.institutionId || !canAddNotices) return;
+    if (!canAddNotices) return;
     
     setIsSubmitting(true);
     try {
+      const targetInstId = user?.institutionId || user?.id || 'default';
       await addDoc(collection(db, 'notices'), {
         ...formData,
-        institutionId: user.institutionId,
-        createdBy: user.id,
-        creatorName: user.name,
+        institutionId: targetInstId,
+        createdBy: user?.id,
+        creatorName: user?.name || 'Admin',
         createdAt: serverTimestamp()
       });
       
@@ -82,14 +85,16 @@ export default function Notices() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this notice?")) {
-      try {
-        await deleteDoc(doc(db, 'notices', id));
-      } catch (error) {
-        console.error("Error deleting notice:", error);
-        alert("Failed to delete notice.");
-      }
+  const confirmDeleteNotice = async () => {
+    if (!deleteNoticeId) return;
+    const targetId = deleteNoticeId;
+    setNotices(prev => prev.filter(n => n.id !== targetId));
+    setDeleteNoticeId(null);
+    try {
+      await deleteDoc(doc(db, 'notices', targetId));
+    } catch (error) {
+      console.error("Error deleting notice:", error);
+      alert("Failed to delete notice.");
     }
   };
 
@@ -217,15 +222,24 @@ export default function Notices() {
             </div>
             {canAddNotices && (
               <button 
-                onClick={() => handleDelete(notice.id)}
-                className="text-sm text-rose-600 hover:text-rose-700 font-medium px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                onClick={() => setDeleteNoticeId(notice.id)}
+                className="text-sm text-rose-600 hover:text-rose-700 font-medium px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1 shrink-0"
               >
-                Delete
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
               </button>
             )}
           </div>
         ))}
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteNoticeId}
+        title="Delete Notice"
+        message="Are you sure you want to delete this notice? This action cannot be undone."
+        onConfirm={confirmDeleteNotice}
+        onCancel={() => setDeleteNoticeId(null)}
+      />
     </div>
   );
 }

@@ -22,6 +22,7 @@ import Teachers from './pages/dashboards/Teachers';
 import Students from './pages/dashboards/Students';
 import Events from './pages/dashboards/Events';
 import Notices from './pages/dashboards/Notices';
+import StudyGroups from './pages/dashboards/StudyGroups';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -75,17 +76,21 @@ export default function App() {
             <Route index element={<DashboardRedirect />} />
             <Route path="super-admin" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><SuperAdminDashboard /></ProtectedRoute>} />
             <Route path="super-admin/institutions" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><Institutions /></ProtectedRoute>} />
+            <Route path="super-admin/study-groups" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><StudyGroups /></ProtectedRoute>} />
             <Route path="super-admin/*" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
             
             <Route path="institution" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><InstitutionDashboard /></ProtectedRoute>} />
+            <Route path="institution/study-groups" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><StudyGroups /></ProtectedRoute>} />
             <Route path="institution/complaints" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Complaints /></ProtectedRoute>} />
             <Route path="institution/teachers" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Teachers /></ProtectedRoute>} />
             <Route path="institution/students" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Students /></ProtectedRoute>} />
             <Route path="institution/events" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Events /></ProtectedRoute>} />
+            <Route path="institution/timetable" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Timetable /></ProtectedRoute>} />
             <Route path="institution/notices" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Notices /></ProtectedRoute>} />
             <Route path="institution/*" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
 
             <Route path="teacher" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherDashboard /></ProtectedRoute>} />
+            <Route path="teacher/study-groups" element={<ProtectedRoute allowedRoles={['TEACHER']}><StudyGroups /></ProtectedRoute>} />
             <Route path="teacher/students" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherStudents /></ProtectedRoute>} />
             <Route path="teacher/homework" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherHomework /></ProtectedRoute>} />
             <Route path="teacher/attendance" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherAttendance /></ProtectedRoute>} />
@@ -96,6 +101,7 @@ export default function App() {
             <Route path="teacher/*" element={<ProtectedRoute allowedRoles={['TEACHER']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
 
             <Route path="student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
+            <Route path="student/study-groups" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudyGroups /></ProtectedRoute>} />
             <Route path="student/events" element={<ProtectedRoute allowedRoles={['STUDENT']}><Events /></ProtectedRoute>} />
             <Route path="student/homework" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentHomework /></ProtectedRoute>} />
             <Route path="student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />

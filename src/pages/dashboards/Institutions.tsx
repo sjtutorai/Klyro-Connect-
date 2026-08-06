@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
+import { PageHeader, ConfirmModal } from '../../components/ui';
 import { Building2, Plus, Search, MapPin, Mail, Phone, MoreVertical, Loader2, Trash2, Edit, Lock } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, deleteDoc, doc, where, getDocs, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,6 +25,7 @@ export default function Institutions() {
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [deleteInstId, setDeleteInstId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     address: '',
@@ -39,29 +40,35 @@ export default function Institutions() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this institution? This action cannot be undone.')) {
-      try {
-        await deleteDoc(doc(db, 'institutions', id));
-        const q = query(collection(db, 'users'), where('institutionId', '==', id), where('role', '==', 'INSTITUTION'));
-        const { getDocs } = await import('firebase/firestore');
-        const snapshot = await getDocs(q);
-        snapshot.forEach(async (docSnap) => {
-          await deleteDoc(docSnap.ref);
-        });
-      } catch (error: any) {
-        console.error("Error deleting institution:", error);
-        alert(`Failed to delete institution: ${error.message}`);
-      }
+  const confirmDelete = async () => {
+    if (!deleteInstId) return;
+    const targetId = deleteInstId;
+    setInstitutions(prev => prev.filter(i => i.id !== targetId));
+    setDeleteInstId(null);
+    try {
+      await deleteDoc(doc(db, 'institutions', targetId));
+      const q = query(collection(db, 'users'), where('institutionId', '==', targetId));
+      const snapshot = await getDocs(q);
+      snapshot.forEach(async (docSnap) => {
+        await deleteDoc(docSnap.ref);
+      });
+    } catch (error: any) {
+      console.error("Error deleting institution:", error);
+      alert(`Failed to delete institution: ${error.message}`);
     }
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'institutions'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'institutions'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Institution[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as Institution);
+      });
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
       });
       setInstitutions(list);
       setIsLoading(false);
@@ -329,7 +336,7 @@ export default function Institutions() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveDropdown(null);
-                              handleDelete(inst.id);
+                              setDeleteInstId(inst.id);
                             }}
                           >
                             <Trash2 className="w-4 h-4" /> Delete
@@ -351,6 +358,14 @@ export default function Institutions() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteInstId}
+        title="Delete Institution"
+        message="Are you sure you want to delete this institution? All linked accounts and data will be removed. This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteInstId(null)}
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, Building2, Users, GraduationCap, 
-  BookOpen, Calendar, Bell, FileBarChart, MessageSquareWarning, 
+  BookOpen, Calendar, Bell, FileBarChart, MessageSquareWarning, MessagesSquare,
   Settings, LogOut, Menu, X 
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -13,13 +13,16 @@ const ROLE_NAVS = {
   SUPER_ADMIN: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/super-admin' },
     { name: 'Institutions', icon: Building2, path: '/dashboard/super-admin/institutions' },
+    { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/super-admin/study-groups' },
     { name: 'Analytics', icon: FileBarChart, path: '/dashboard/super-admin/analytics' },
     { name: 'Settings', icon: Settings, path: '/dashboard/super-admin/settings' },
   ],
   INSTITUTION: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/institution' },
+    { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/institution/study-groups' },
     { name: 'Teachers', icon: Users, path: '/dashboard/institution/teachers' },
     { name: 'Students', icon: GraduationCap, path: '/dashboard/institution/students' },
+    { name: 'Timetable', icon: Calendar, path: '/dashboard/institution/timetable' },
     { name: 'Events', icon: Calendar, path: '/dashboard/institution/events' },
     { name: 'Notices', icon: Bell, path: '/dashboard/institution/notices' },
     { name: 'Reports', icon: FileBarChart, path: '/dashboard/institution/reports' },
@@ -28,6 +31,7 @@ const ROLE_NAVS = {
   ],
   TEACHER: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/teacher' },
+    { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/teacher/study-groups' },
     { name: 'My Students', icon: Users, path: '/dashboard/teacher/students' },
     { name: 'Events', icon: Calendar, path: '/dashboard/teacher/events' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/teacher/homework' },
@@ -38,6 +42,7 @@ const ROLE_NAVS = {
   ],
   STUDENT: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/student' },
+    { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/student/study-groups' },
     { name: 'Events', icon: Calendar, path: '/dashboard/student/events' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/student/homework' },
     { name: 'Attendance', icon: Calendar, path: '/dashboard/student/attendance' },
@@ -71,7 +76,7 @@ export default function DashboardLayout() {
             <div className="bg-indigo-600 p-1.5 rounded-lg">
               <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-900">Klyro Connect</span>
+            <span className="text-xl font-bold text-slate-900">VAKS <span className="text-indigo-600">AI</span></span>
           </div>
         </div>
         
@@ -124,7 +129,7 @@ export default function DashboardLayout() {
             <div className="bg-indigo-600 p-1.5 rounded-lg">
               <GraduationCap className="h-5 w-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900">Klyro</span>
+            <span className="text-lg font-bold text-slate-900">VAKS AI</span>
           </div>
           <button 
             onClick={() => setIsMobileMenuOpen(true)}

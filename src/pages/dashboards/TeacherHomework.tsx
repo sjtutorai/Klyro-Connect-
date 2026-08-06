@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader } from '../../components/ui';
+import { PageHeader, ConfirmModal } from '../../components/ui';
 import { BookOpen, Plus, Search, Loader2, Image as ImageIcon, CheckCircle2, Eye, X, Trash2, Calendar, User } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -161,19 +161,22 @@ export default function TeacherHomework() {
     }
   };
 
-  const handleDeleteHomework = async (hwId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this homework assignment?')) {
-      try {
-        await deleteDoc(doc(db, 'homeworks', hwId));
-        if (activeHomework === hwId) {
-          const remaining = homeworks.filter(h => h.id !== hwId);
-          setActiveHomework(remaining[0]?.id || null);
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Failed to delete homework assignment.');
-      }
+  const [deleteHwId, setDeleteHwId] = useState<string | null>(null);
+
+  const confirmDeleteHomework = async () => {
+    if (!deleteHwId) return;
+    const targetId = deleteHwId;
+    setHomeworks(prev => prev.filter(h => h.id !== targetId));
+    if (activeHomework === targetId) {
+      const remaining = homeworks.filter(h => h.id !== targetId);
+      setActiveHomework(remaining[0]?.id || null);
+    }
+    setDeleteHwId(null);
+    try {
+      await deleteDoc(doc(db, 'homeworks', targetId));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete homework assignment.');
     }
   };
 
@@ -289,8 +292,11 @@ export default function TeacherHomework() {
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors pr-6">{hw.title}</h4>
                   <button 
-                    onClick={(e) => handleDeleteHomework(hw.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteHwId(hw.id);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                     title="Delete Assignment"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -428,6 +434,14 @@ export default function TeacherHomework() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteHwId}
+        title="Delete Homework Assignment"
+        message="Are you sure you want to delete this homework assignment? All associated student submissions will be lost."
+        onConfirm={confirmDeleteHomework}
+        onCancel={() => setDeleteHwId(null)}
+      />
     </div>
   );
 }

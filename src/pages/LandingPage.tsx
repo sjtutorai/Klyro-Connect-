@@ -47,7 +47,7 @@ export default function LandingPage() {
             <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight text-slate-800">
-            Klyro <span className="text-indigo-600">Connect</span>
+            VAKS <span className="text-indigo-600">AI</span>
           </span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
@@ -76,7 +76,7 @@ export default function LandingPage() {
             <span className="text-indigo-600">Campus Management</span> Platform
           </h1>
           <p className="text-xl text-slate-500 leading-relaxed mb-8">
-            Klyro Connect bridges the gap between institutions, teachers, students, and administrators with one intelligent ecosystem designed for the modern era of education.
+            VAKS AI bridges the gap between institutions, teachers, students, and administrators with one intelligent ecosystem designed for the modern era of education.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link to="/login" className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
