@@ -1,9 +1,43 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { GraduationCap, ShieldCheck, Users, BookOpen, UserCircle, CheckCircle2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { GraduationCap, ShieldCheck, Users, BookOpen, UserCircle, CheckCircle2, Loader2, X, Building2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function LandingPage() {
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    email: '',
+    phone: '',
+    password: ''
+  });
+  
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'institutions'), {
+        ...formData,
+        status: 'Pending',
+        studentsCount: 0,
+        teachersCount: 0,
+        createdAt: serverTimestamp()
+      });
+      alert('School registered successfully! An administrator will review your request.');
+      setShowRegisterModal(false);
+      setFormData({ name: '', address: '', email: '', phone: '', password: '' });
+    } catch (error) {
+      console.error("Error registering school:", error);
+      alert("Failed to register school.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
       {/* Navbar */}
@@ -21,7 +55,7 @@ export default function LandingPage() {
           <a href="#stats" className="hover:text-indigo-600 transition-colors">Impact</a>
           <div className="flex items-center gap-4">
             <Link to="/login" className="px-5 py-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-800 transition-colors">Login</Link>
-            <button className="px-5 py-2 bg-indigo-600 rounded-full text-white hover:bg-indigo-700 transition-colors">Request Access</button>
+            <button onClick={() => setShowRegisterModal(true)} className="px-5 py-2 bg-indigo-600 rounded-full text-white hover:bg-indigo-700 transition-colors">Register a School</button>
           </div>
         </div>
       </nav>
@@ -48,6 +82,9 @@ export default function LandingPage() {
             <Link to="/login" className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
               Get Started
             </Link>
+            <button onClick={() => setShowRegisterModal(true)} className="px-8 py-3 bg-white text-indigo-600 border border-indigo-200 rounded-full font-semibold hover:bg-indigo-50 transition-colors shadow-sm">
+              Register a School
+            </button>
           </div>
         </motion.div>
 
@@ -104,6 +141,111 @@ export default function LandingPage() {
           <a href="#" className="hover:text-white transition-colors">Support Hub</a>
         </div>
       </footer>
+
+      <AnimatePresence>
+        {showRegisterModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              onClick={() => setShowRegisterModal(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full relative z-10 shadow-xl"
+            >
+              <button 
+                onClick={() => setShowRegisterModal(false)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">Register Institution</h2>
+              </div>
+              
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Institution Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none" 
+                    placeholder="e.g. Springfield High" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none" 
+                    placeholder="Full street address..." 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Contact Email</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none" 
+                    placeholder="admin@school.com" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                  <input 
+                    type="tel" 
+                    required
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none" 
+                    placeholder="+1 (555) 000-0000" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none" 
+                    placeholder="Create a password" 
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className="w-full py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition flex items-center justify-center gap-2 mt-6"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                  Submit Registration
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

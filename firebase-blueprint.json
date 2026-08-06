@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user in the system.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["SUPER_ADMIN", "INSTITUTION", "TEACHER", "STUDENT"]
+        },
+        "institutionId": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": ["email", "name", "role"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "A complaint submitted by a user.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Academic", "Teacher", "Student", "Facilities", "IT Support", "Other"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["Low", "Medium", "High"]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "In Progress", "Resolved", "Rejected"]
+        },
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "object"
+        }
+      },
+      "required": ["title", "category", "priority", "description", "status", "userId", "userName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "User"
+      },
+      "description": "Users collection."
+    },
+    "/complaints/{complaintId}": {
+      "schema": {
+        "$ref": "Complaint"
+      },
+      "description": "Complaints collection."
+    }
+  }
+}

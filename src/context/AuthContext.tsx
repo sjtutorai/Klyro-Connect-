@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
           } else {
             // Auto-create admin if it's the specific email
-            if (firebaseUser.email === 'krishay5712@gmail.com') {
+            if (firebaseUser.email === 'sjtutorai@gmail.com') {
               const adminUser: Omit<User, 'id'> = {
                 email: firebaseUser.email,
                 name: 'Super Admin',
@@ -53,9 +53,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               setUser({ id: firebaseUser.uid, ...defaultUser } as User);
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching user data:", error);
-          setUser(null);
+          // Fallback to basic user info if Firestore is unreachable
+          const fallbackUser: Omit<User, 'id'> = {
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'User',
+            role: firebaseUser.email === 'sjtutorai@gmail.com' ? 'SUPER_ADMIN' : 'STUDENT',
+            institutionId: null
+          };
+          setUser({ id: firebaseUser.uid, ...fallbackUser } as User);
         }
       } else {
         setUser(null);

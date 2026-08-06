@@ -14,7 +14,6 @@ const ROLE_NAVS = {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/super-admin' },
     { name: 'Institutions', icon: Building2, path: '/dashboard/super-admin/institutions' },
     { name: 'Analytics', icon: FileBarChart, path: '/dashboard/super-admin/analytics' },
-    { name: 'Complaints', icon: MessageSquareWarning, path: '/dashboard/super-admin/complaints' },
     { name: 'Settings', icon: Settings, path: '/dashboard/super-admin/settings' },
   ],
   INSTITUTION: [
@@ -30,6 +29,7 @@ const ROLE_NAVS = {
   TEACHER: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/teacher' },
     { name: 'My Students', icon: Users, path: '/dashboard/teacher/students' },
+    { name: 'Events', icon: Calendar, path: '/dashboard/teacher/events' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/teacher/homework' },
     { name: 'Attendance', icon: Calendar, path: '/dashboard/teacher/attendance' },
     { name: 'Timetable', icon: Calendar, path: '/dashboard/teacher/timetable' },
@@ -38,6 +38,7 @@ const ROLE_NAVS = {
   ],
   STUDENT: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/student' },
+    { name: 'Events', icon: Calendar, path: '/dashboard/student/events' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/student/homework' },
     { name: 'Attendance', icon: Calendar, path: '/dashboard/student/attendance' },
     { name: 'Timetable', icon: Calendar, path: '/dashboard/student/timetable' },

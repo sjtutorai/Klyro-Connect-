@@ -88,7 +88,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-11 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none bg-slate-50 focus:bg-white text-slate-900"
-                  placeholder="admin@klyro.com"
+                  placeholder="Enter your email"
                 />
               </div>
             </div>
