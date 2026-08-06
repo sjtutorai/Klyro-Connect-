@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader, ConfirmModal } from '../../components/ui';
-import { Users, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check } from 'lucide-react';
+import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
+import { Users, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Phone, Lock, Sparkles } from 'lucide-react';
 import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +10,7 @@ type Teacher = {
   name: string;
   email: string;
   phone: string;
+  subject?: string;
   assignedClasses: string;
   password?: string;
   status: string;
@@ -30,6 +31,7 @@ export default function Teachers() {
     name: '',
     email: '',
     phone: '',
+    subject: '',
     assignedClasses: '',
     password: ''
   });
@@ -54,6 +56,7 @@ export default function Teachers() {
     try {
       await updateDoc(doc(db, 'users', editingTeacher.id), {
         name: editingTeacher.name,
+        subject: editingTeacher.subject || '',
         assignedClasses: editingTeacher.assignedClasses,
         phone: editingTeacher.phone,
         status: editingTeacher.status || 'Active'
@@ -132,6 +135,7 @@ export default function Teachers() {
         role: 'TEACHER',
         institutionId: instId,
         phone: formData.phone,
+        subject: formData.subject,
         assignedClasses: formData.assignedClasses,
         password: formData.password,
         status: 'Active',
@@ -141,7 +145,7 @@ export default function Teachers() {
       await signOut(secondaryAuth);
       
       setShowForm(false);
-      setFormData({ name: '', email: '', phone: '', assignedClasses: '', password: '' });
+      setFormData({ name: '', email: '', phone: '', subject: '', assignedClasses: '', password: '' });
       alert("Teacher registered successfully.");
     } catch (error) {
       console.error("Error adding teacher:", error);
@@ -154,278 +158,313 @@ export default function Teachers() {
   const filteredTeachers = teachers.filter(t => 
     t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.assignedClasses?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader 
-        title="Teachers & Class Assignments" 
-        description="Assign classes, sections and manage teachers in your institution."
+        title="Faculty & Class Assignments" 
+        description="Assign classes and sections to teachers to grant them access to student directories."
+        badge="Institution Governance"
+        breadcrumbs={[{ label: 'Institution' }, { label: 'Faculty Roster' }]}
         action={
-          <button 
+          <Button 
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm"
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-5 h-5" />
-            Add Teacher
-          </button>
+            Add New Teacher
+          </Button>
         }
       />
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-100 shadow-sm mb-8 animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">Add New Teacher</h2>
+        <Card className="animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Register Faculty Member</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Set credentials and assign specific classes/sections</p>
+            </div>
+          </div>
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
                 <input 
                   type="text" 
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. John Doe" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Dr. Sarah Jenkins" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Assign Classes & Sections</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Subject / Specialty</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.subject}
+                  onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Mathematics, Physics, English" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assign Classes & Sections</label>
                 <input 
                   type="text" 
                   required
                   value={formData.assignedClasses}
                   onChange={(e) => setFormData({...formData, assignedClasses: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. Class 10-A, Class 10-B, Grade 9 Science" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Grade 10-A, Grade 10-B" 
                 />
-                <p className="text-xs text-slate-500 mt-1">Separate multiple classes/sections with commas.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Separate multiple classes with commas.</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
                 <input 
                   type="email" 
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="teacher@school.com" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
                 <input 
                   type="password"
                   minLength={6} 
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="Create a password" 
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
                 <input 
                   type="tel" 
                   required
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="+1 (555) 000-0000" 
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition">
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
                 Cancel
-              </button>
-              <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition flex items-center gap-2">
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+              </Button>
+              <Button type="submit" isLoading={isSubmitting}>
                 Add Teacher
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
       {/* Edit Modal */}
       {editingTeacher && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-xl animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-indigo-600" />
-              Edit Teacher & Assigned Classes
-            </h2>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200 space-y-6">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Edit Faculty Profile</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Update assigned classes & phone contact</p>
+              </div>
+            </div>
+
             <form onSubmit={handleUpdateTeacher} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Teacher Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Teacher Name</label>
                 <input 
                   type="text" 
                   required
                   value={editingTeacher.name}
                   onChange={e => setEditingTeacher({...editingTeacher, name: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Classes & Sections</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Subject / Specialty</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingTeacher.subject || ''}
+                  onChange={e => setEditingTeacher({...editingTeacher, subject: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Mathematics, Science"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assigned Classes & Sections</label>
                 <input 
                   type="text" 
                   required
                   value={editingTeacher.assignedClasses}
                   onChange={e => setEditingTeacher({...editingTeacher, assignedClasses: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
-                  placeholder="e.g. Class 10-A, Class 10-B"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Grade 10-A, Grade 10-B"
                 />
-                <p className="text-xs text-slate-500 mt-1">This determines which students the teacher manages.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Teachers only see students matching these assigned classes.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
                 <input 
                   type="text" 
                   value={editingTeacher.phone}
                   onChange={e => setEditingTeacher({...editingTeacher, phone: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingTeacher(null)}
-                  className="px-5 py-2 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm hover:bg-slate-50"
-                >
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button type="button" variant="ghost" onClick={() => setEditingTeacher(null)}>
                   Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 flex items-center gap-2"
-                >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Changes
-                </button>
+                </Button>
+                <Button type="submit" isLoading={isSubmitting} icon={<Check className="w-4 h-4" />}>
+                  Save Changes
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+      {/* Teachers Table Card */}
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="relative w-full sm:w-96">
-            <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Search teachers by name, email, or class..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
+              placeholder="Search by teacher name, email, or class..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500 transition"
             />
           </div>
+          <Badge variant="purple">{filteredTeachers.length} Faculty Members</Badge>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Teacher</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact & Login</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned Classes & Sections</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+              <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Teacher Profile</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subject / Speciality</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact & Credentials</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assigned Classes</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                    Loading teachers...
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
+                    Loading faculty directory...
                   </td>
                 </tr>
               ) : filteredTeachers.map((teacher) => (
-                <tr key={teacher.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={teacher.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
                         {teacher.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-slate-900">{teacher.name}</div>
-                        <div className="text-xs text-slate-500">ID: {teacher.id.slice(0, 8)}</div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{teacher.name}</p>
+                        <p className="text-[11px] text-slate-400">ID: {teacher.id.slice(0, 8)}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">{teacher.email}</div>
-                    <div className="text-xs text-slate-500 font-mono">Pwd: {teacher.password || '******'}</div>
-                    <div className="text-xs text-slate-500">{teacher.phone}</div>
+                    <Badge variant="purple">
+                      {teacher.subject || 'General'}
+                    </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
+                    <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
+                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {teacher.email}</span>
+                      <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400"><Lock className="w-3 h-3 text-slate-400" /> {teacher.password || '******'}</span>
+                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {teacher.phone}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1.5 max-w-xs">
                       {(teacher.assignedClasses || 'Unassigned').split(',').map((cls, idx) => (
-                        <span key={idx} className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold">
+                        <span key={idx} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold">
                           {cls.trim()}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
-                      teacher.status === 'Active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                      'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
-                      {teacher.status || 'Active'}
-                    </span>
+                    <Badge variant="success" dot>Active</Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
-                      <button 
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
                         onClick={() => setEditingTeacher(teacher)}
-                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Edit Teacher & Classes"
+                        icon={<Edit className="w-3.5 h-3.5" />}
                       >
-                        <Edit className="w-4 h-4" />
-                        <span>Edit</span>
-                      </button>
-                      <button 
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="danger" 
+                        size="sm"
                         onClick={() => setDeleteTeacherId(teacher.id)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Delete Teacher"
+                        icon={<Trash2 className="w-3.5 h-3.5" />}
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {!isLoading && filteredTeachers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    No teachers found matching your search.
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">
+                    No faculty members found matching your search.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       <ConfirmModal
         isOpen={!!deleteTeacherId}
-        title="Delete Teacher"
-        message="Are you sure you want to delete this teacher account? This action cannot be undone."
+        title="Delete Faculty Account"
+        message="Are you sure you want to remove this teacher? Their access permissions will be permanently revoked."
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTeacherId(null)}
       />
     </div>
   );
 }
-

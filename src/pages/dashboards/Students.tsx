@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader, ConfirmModal } from '../../components/ui';
-import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check } from 'lucide-react';
+import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
+import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Lock, Phone } from 'lucide-react';
 import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -163,270 +163,267 @@ export default function Students() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader 
-        title="Students & Class Assignments" 
-        description="Assign classes, sections and manage enrolled students."
+        title="Student Roster & Enrollment" 
+        description="Enroll students into specific classes/sections to map homework, attendance, and study groups."
+        badge="Institution Governance"
+        breadcrumbs={[{ label: 'Institution' }, { label: 'Student Directory' }]}
         action={
-          <button 
+          <Button 
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm"
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-5 h-5" />
-            Add Student
-          </button>
+            Enroll New Student
+          </Button>
         }
       />
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-100 shadow-sm mb-8 animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">Add New Student</h2>
+        <Card className="animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Enroll Student Profile</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Assign roll number, class section & credentials</p>
+            </div>
+          </div>
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
                 <input 
                   type="text" 
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. Jane Doe" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Alex Johnson" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Assign Class & Section</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assign Class & Section</label>
                 <input 
                   type="text" 
                   required
                   value={formData.assignedClass}
                   onChange={(e) => setFormData({...formData, assignedClass: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
-                  placeholder="e.g. Class 10-A or Class 9-B" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Grade 10-A" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
                 <input 
                   type="email" 
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="student@school.com" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
                 <input 
                   type="password"
                   minLength={6} 
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="Create a password" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Roll Number / ID</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Roll Number / ID</label>
                 <input 
                   type="text"
                   value={formData.rollNumber}
                   onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="e.g. STU-1002" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Parent / Contact Phone</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Parent / Contact Phone</label>
                 <input 
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all outline-none" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="+1 (555) 000-0000" 
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition">
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
                 Cancel
-              </button>
-              <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition flex items-center gap-2">
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+              </Button>
+              <Button type="submit" isLoading={isSubmitting}>
                 Add Student
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
-      {/* Edit Student Modal */}
+      {/* Edit Modal */}
       {editingStudent && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-xl animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <GraduationCap className="w-5 h-5 text-indigo-600" />
-              Edit Student & Class Assignment
-            </h2>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200 space-y-6">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Edit Student Profile</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Update class section and roll details</p>
+              </div>
+            </div>
+
             <form onSubmit={handleUpdateStudent} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Student Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Student Name</label>
                 <input 
                   type="text" 
                   required
                   value={editingStudent.name}
                   onChange={e => setEditingStudent({...editingStudent, name: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Class & Section</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assigned Class & Section</label>
                 <input 
                   type="text" 
                   required
                   value={editingStudent.assignedClass}
                   onChange={e => setEditingStudent({...editingStudent, assignedClass: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
-                  placeholder="e.g. Class 10-A, Class 9-B"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="e.g. Grade 10-A"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Roll Number / Student ID</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Roll Number / Student ID</label>
                 <input 
                   type="text" 
                   value={editingStudent.rollNumber || ''}
                   onChange={e => setEditingStudent({...editingStudent, rollNumber: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="e.g. STU-1002"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contact Phone</label>
-                <input 
-                  type="text" 
-                  value={editingStudent.phone || ''}
-                  onChange={e => setEditingStudent({...editingStudent, phone: e.target.value})}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none text-sm"
-                />
-              </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingStudent(null)}
-                  className="px-5 py-2 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm hover:bg-slate-50"
-                >
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button type="button" variant="ghost" onClick={() => setEditingStudent(null)}>
                   Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 flex items-center gap-2"
-                >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Changes
-                </button>
+                </Button>
+                <Button type="submit" isLoading={isSubmitting} icon={<Check className="w-4 h-4" />}>
+                  Save Changes
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+      {/* Students Table Card */}
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="relative w-full sm:w-96">
-            <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Search students by name, email, or class..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
+              placeholder="Search by student name, email, or class..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500 transition"
             />
           </div>
+          <Badge variant="success">{filteredStudents.length} Enrolled Students</Badge>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact & Login</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Class & Section</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+              <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Student Profile</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact & Credentials</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class & Section</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                    Loading students...
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
+                    Loading student roster...
                   </td>
                 </tr>
               ) : filteredStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={student.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0">
                         {student.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-slate-900">{student.name}</div>
-                        <div className="text-xs text-slate-500 font-mono">Roll: {student.rollNumber || student.id.slice(0, 8)}</div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{student.name}</p>
+                        <p className="text-[11px] text-slate-400 font-mono">Roll: {student.rollNumber || student.id.slice(0, 8)}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">{student.email}</div>
-                    <div className="text-xs text-slate-500 font-mono">Pwd: {student.password || '******'}</div>
+                    <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
+                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {student.email}</span>
+                      <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400"><Lock className="w-3 h-3 text-slate-400" /> {student.password || '******'}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-3 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold">
+                    <Badge variant="emerald">
                       {student.assignedClass || 'Unassigned'}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
-                      student.status === 'Active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                      'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
-                      {student.status || 'Active'}
-                    </span>
+                    <Badge variant="success" dot>Active</Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
-                      <button 
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
                         onClick={() => setEditingStudent(student)}
-                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Edit Student & Class"
+                        icon={<Edit className="w-3.5 h-3.5" />}
                       >
-                        <Edit className="w-4 h-4" />
-                        <span>Edit</span>
-                      </button>
-                      <button 
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="danger" 
+                        size="sm"
                         onClick={() => setDeleteStudentId(student.id)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Delete Student"
+                        icon={<Trash2 className="w-3.5 h-3.5" />}
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {!isLoading && filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm">
                     No students found matching your search.
                   </td>
                 </tr>
@@ -434,16 +431,15 @@ export default function Students() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       <ConfirmModal
         isOpen={!!deleteStudentId}
-        title="Delete Student"
-        message="Are you sure you want to delete this student account? This action cannot be undone."
+        title="Delete Student Account"
+        message="Are you sure you want to remove this student? This action cannot be undone."
         onConfirm={confirmDelete}
         onCancel={() => setDeleteStudentId(null)}
       />
     </div>
   );
 }
-

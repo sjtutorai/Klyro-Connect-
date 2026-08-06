@@ -26,6 +26,9 @@ service cloud.firestore {
     match /complaints/{complaintId} {
       allow read, write: if true;
     }
+    match /classes/{classId} {
+      allow read, write: if true;
+    }
     match /study_groups/{groupId} {
       allow read, write: if true;
       match /messages/{messageId} {
