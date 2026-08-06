@@ -65,7 +65,7 @@ export default function ClassesAndSections() {
   ]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
-  const targetInstId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+  const targetInstId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : 'default_institution');
 
   // Fetch Classes, Teachers, and Students
   useEffect(() => {
@@ -188,7 +188,10 @@ export default function ClassesAndSections() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetInstId) return;
+    if (!targetInstId) {
+      alert("No institution ID found. Please refresh and try again.");
+      return;
+    }
     if (!classNameInput.trim() || !sectionInput.trim()) {
       alert("Please enter Class Name and Section.");
       return;
@@ -210,14 +213,17 @@ export default function ClassesAndSections() {
         };
       });
 
-    const classDocId = editingClass ? editingClass.id : `${targetInstId}_${classNameInput.trim()}_${sectionInput.trim()}`.replace(/\s+/g, '_');
+    // Create safe document reference ID without invalid characters
+    const classDocRef = editingClass 
+      ? doc(db, 'classes', editingClass.id)
+      : doc(collection(db, 'classes'));
 
     try {
       const classData = {
         className: classNameInput.trim(),
         section: sectionInput.trim(),
         fullTitle,
-        classTeacherId: selectedClassTeacherId,
+        classTeacherId: selectedClassTeacherId || '',
         classTeacherName: classTeacherObj ? classTeacherObj.name : 'Unassigned',
         subjectTeachers: formattedSubjectTeachers,
         studentIds: selectedStudentIds,
@@ -226,15 +232,21 @@ export default function ClassesAndSections() {
         ...(!editingClass && { createdAt: serverTimestamp() })
       };
 
-      await setDoc(doc(db, 'classes', classDocId), classData, { merge: true });
+      await setDoc(classDocRef, classData, { merge: true });
 
       // Update student profiles assignedClass field
-      const batch = writeBatch(db);
-      selectedStudentIds.forEach(stId => {
-        const stRef = doc(db, 'users', stId);
-        batch.update(stRef, { assignedClass: fullTitle, classId: classDocId });
-      });
-      await batch.commit();
+      if (selectedStudentIds.length > 0) {
+        try {
+          const batch = writeBatch(db);
+          selectedStudentIds.forEach(stId => {
+            const stRef = doc(db, 'users', stId);
+            batch.update(stRef, { assignedClass: fullTitle, classId: classDocRef.id });
+          });
+          await batch.commit();
+        } catch (studentErr) {
+          console.warn("Warning: Could not batch update all student profiles:", studentErr);
+        }
+      }
 
       // Also update teachers assigned classes string if teacher assigned
       const involvedTeacherIds = new Set<string>();
@@ -247,8 +259,6 @@ export default function ClassesAndSections() {
         const teacherObj = teachers.find(t => t.id === tId);
         if (teacherObj) {
           const tRef = doc(db, 'users', tId);
-          // Check existing assignedClasses string
-          // We don't overwrite blindly, but ensure fullTitle is present
           updateDoc(tRef, {
             assignedClasses: teacherObj.subject ? `${fullTitle} (${teacherObj.subject})` : fullTitle
           }).catch(() => {});
@@ -257,9 +267,9 @@ export default function ClassesAndSections() {
 
       alert(`Class & Section "${fullTitle}" successfully saved!`);
       setShowModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving class and section:", error);
-      alert("Failed to save class & section. Please try again.");
+      alert(`Failed to save class & section: ${error?.message || "Please check inputs and try again."}`);
     } finally {
       setIsSubmitting(false);
     }
