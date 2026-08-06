@@ -7,6 +7,15 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { db, isDbConfigured } from './src/db';
 import { users, roleEnum } from './src/db/schema';
+import { GoogleGenAI } from '@google/genai';
+
+let aiClient: GoogleGenAI | null = null;
+function getGenAI() {
+  if (!aiClient && process.env.GEMINI_API_KEY) {
+    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return aiClient;
+}
 
 const app = express();
 const PORT = 3000;
@@ -134,6 +143,52 @@ app.get('/api/dashboard/stats', requireAuth, (req, res) => {
     return res.json({ classes: 4, students: 120, pendingHomework: 5, averageAttendance: 92 });
   } else {
     return res.json({ courses: 6, pendingHomework: 2, attendance: 95, unreadNotices: 3 });
+  }
+});
+
+// AI Complaint Moderation & Purge Endpoint
+app.post('/api/ai/clean-complaints', requireAuth, async (req, res) => {
+  const { complaints } = req.body;
+  if (!Array.isArray(complaints)) {
+    return res.status(400).json({ error: 'Invalid payload: complaints array required' });
+  }
+
+  try {
+    const ai = getGenAI();
+    let invalidIds: string[] = [];
+
+    if (ai) {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Analyze these complaints submitted to an educational institution. Identify complaints that are "unknown", spam, gibberish, test entries, meaningless noise (e.g., random keyboard mashing like "asdfghjkl", "123", "test test"), or non-actionable blank complaints.
+Return ONLY a JSON array of the string IDs of complaints that should be deleted.
+Example format: ["id1", "id2"]
+
+Complaints data:
+${JSON.stringify(complaints)}`,
+      });
+
+      const text = response.text || '[]';
+      const cleanJson = text.replace(/```json|```/g, '').trim();
+      const match = cleanJson.match(/\[.*\]/s);
+      if (match) {
+        invalidIds = JSON.parse(match[0]);
+      }
+    } else {
+      // Intelligent heuristic scan fallback
+      invalidIds = complaints.filter((c: any) => {
+        const title = (c.title || '').trim().toLowerCase();
+        const desc = (c.description || '').trim().toLowerCase();
+        const isUnknown = c.isAnonymous || c.userName === 'Anonymous' || !c.userName;
+        const isGibberish = title.length < 3 || desc.length < 5 || /^([a-z0-9])\1+$/i.test(title) || /asdf|qwerty|1234|test test|xyz|xxx/i.test(title + ' ' + desc);
+        return isUnknown && isGibberish;
+      }).map((c: any) => c.id);
+    }
+
+    res.json({ invalidIds });
+  } catch (err) {
+    console.error('AI Moderation Error:', err);
+    res.status(500).json({ error: 'AI Moderation failed' });
   }
 });
 

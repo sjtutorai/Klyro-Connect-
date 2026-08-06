@@ -264,31 +264,15 @@ export default function Students() {
                       {student.status || 'Active'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDropdown(activeDropdown === student.id ? null : student.id);
-                      }}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      onClick={() => handleDelete(student.id)}
+                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                      title="Delete Student"
                     >
-                      <MoreVertical className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
                     </button>
-                    
-                    {activeDropdown === student.id && (
-                      <div className="absolute right-6 top-14 w-40 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-                        <button 
-                          className="w-full px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveDropdown(null);
-                            handleDelete(student.id);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" /> Delete
-                        </button>
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}

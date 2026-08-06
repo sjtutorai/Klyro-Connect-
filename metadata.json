@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Klyro Connect",
+  "description": "School management platform for Institutions, Teachers, and Students with Attendance, Homework submission with photos, Complaints moderation & AI cleanup, Events, Notices, and Timetables.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

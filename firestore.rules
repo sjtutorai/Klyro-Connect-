@@ -2,74 +2,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // 2. Helpers
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    function incoming() {
-      return request.resource.data;
-    }
-    
-    function existing() {
-      return resource.data;
-    }
-    
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-    
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'sjtutorai@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SUPER_ADMIN'
-      );
-    }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // 3. User Validation
-    function isValidUser(data) {
-      return data.keys().hasAll(['email', 'name', 'role']) &&
-             data.email is string && data.email.size() <= 200 &&
-             data.name is string && data.name.size() <= 100 &&
-             data.role is string && data.role in ['SUPER_ADMIN', 'INSTITUTION', 'TEACHER', 'STUDENT'];
-    }
-
     match /users/{userId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
-
+    match /institutions/{institutionId} {
+      allow read, write: if true;
+    }
     match /notices/{noticeId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
     match /homeworks/{homeworkId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
     match /attendance/{attId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
     match /submissions/{subId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
     match /events/{eventId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
     match /complaints/{complaintId} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /institutions/{institutionId} {
-      allow read: if isAdmin();
-      allow create: if true;
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
   }
 }
+
