@@ -20,7 +20,7 @@ type Complaint = {
   institutionId?: string;
 };
 
-export default function Complaints() {
+export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
@@ -212,10 +212,37 @@ export default function Complaints() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <PageHeader 
-        title="Complaints & Grievances" 
-        description="Submit complaints named or anonymously. Institutions can moderate and auto-clean unknown spam via AI."
-        action={
+      {!hideHeader && (
+        <PageHeader 
+          title="Complaints & Grievances" 
+          description="Submit complaints named or anonymously. Institutions can moderate and auto-clean unknown spam via AI."
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              {['INSTITUTION', 'SUPER_ADMIN'].includes(user?.role || '') && (
+                <button 
+                  onClick={handleAICleanup}
+                  disabled={isAiCleaning}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition shadow-sm"
+                >
+                  {isAiCleaning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  AI Clean Unknown Complaints
+                </button>
+              )}
+              {['STUDENT', 'TEACHER', 'INSTITUTION'].includes(user?.role || '') && (
+                <button 
+                  onClick={() => setShowForm(!showForm)}
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition shadow-sm"
+                >
+                  {showForm ? 'Cancel' : <><Plus className="w-5 h-5" /> New Complaint</>}
+                </button>
+              )}
+            </div>
+          }
+        />
+      )}
+
+      {hideHeader && (
+        <div className="flex justify-end mb-6">
           <div className="flex flex-wrap items-center gap-3">
             {['INSTITUTION', 'SUPER_ADMIN'].includes(user?.role || '') && (
               <button 
@@ -236,8 +263,8 @@ export default function Complaints() {
               </button>
             )}
           </div>
-        }
-      />
+        </div>
+      )}
 
       {aiResultMsg && (
         <div className="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 flex items-center justify-between animate-in fade-in">

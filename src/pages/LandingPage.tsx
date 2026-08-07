@@ -6,8 +6,9 @@ import {
   Zap, Calendar, Bell, Shield, Layers, Layout
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
 
 export default function LandingPage() {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -27,19 +28,46 @@ export default function LandingPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'institutions'), {
-        ...formData,
+      // 1. Create Auth user
+      const userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const uid = userCred.user.uid;
+
+      // 2. Create Institution Document
+      const instRef = await addDoc(collection(db, 'institutions'), {
+        name: formData.name,
+        address: formData.address,
+        email: formData.email,
+        phone: formData.phone,
+        website: formData.website,
+        principalName: formData.principalName,
+        adminUid: uid,
         status: 'Pending',
         studentsCount: 0,
         teachersCount: 0,
         createdAt: serverTimestamp()
       });
+
+      // 3. Create User Document
+      await setDoc(doc(db, 'users', uid), {
+        name: formData.principalName,
+        email: formData.email,
+        role: 'INSTITUTION',
+        institutionId: instRef.id,
+        institutionName: formData.name,
+        status: 'Pending',
+        createdAt: serverTimestamp()
+      });
+
       alert('School registered successfully! An administrator will review your request.');
       setShowRegisterModal(false);
       setFormData({ name: '', address: '', email: '', phone: '', website: '', principalName: '', password: '' });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error registering school:", error);
-      alert("Failed to register school.");
+      if (error.code === 'auth/email-already-in-use') {
+        alert("This email address is already registered.");
+      } else {
+        alert("Failed to register school: " + error.message);
+      }
     } finally {
       setIsSubmitting(false);
     }

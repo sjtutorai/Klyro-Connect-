@@ -54,13 +54,19 @@ export default function Teachers() {
     if (!editingTeacher) return;
     setIsSubmitting(true);
     try {
-      await updateDoc(doc(db, 'users', editingTeacher.id), {
+      const updateData: any = {
         name: editingTeacher.name,
         subject: editingTeacher.subject || '',
         assignedClasses: editingTeacher.assignedClasses,
         phone: editingTeacher.phone,
         status: editingTeacher.status || 'Active'
-      });
+      };
+
+      if (editingTeacher.password) {
+        updateData.password = editingTeacher.password;
+      }
+
+      await updateDoc(doc(db, 'users', editingTeacher.id), updateData);
       alert('Teacher details and assigned classes updated successfully!');
       setEditingTeacher(null);
     } catch (error) {
@@ -365,6 +371,16 @@ export default function Teachers() {
                   value={editingTeacher.phone}
                   onChange={e => setEditingTeacher({...editingTeacher, phone: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                <input 
+                  type="text" 
+                  value={editingTeacher.password || ''}
+                  onChange={e => setEditingTeacher({...editingTeacher, password: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="Update teacher password"
                 />
               </div>
 

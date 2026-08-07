@@ -16,7 +16,7 @@ type NoticeData = {
   createdAt: any;
 };
 
-export default function Notices() {
+export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
   const { user } = useAuth();
   const [notices, setNotices] = useState<NoticeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,21 +100,35 @@ export default function Notices() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <PageHeader 
-        title="Notices & Announcements" 
-        description="Stay updated with the latest notices"
-        action={
-          canAddNotices ? (
-            <button 
-              onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-            >
-              <Plus className="w-5 h-5" />
-              Add Notice
-            </button>
-          ) : undefined
-        }
-      />
+      {!hideHeader && (
+        <PageHeader 
+          title="Notices & Announcements" 
+          description="Stay updated with the latest notices"
+          action={
+            canAddNotices ? (
+              <button 
+                onClick={() => setShowForm(!showForm)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              >
+                <Plus className="w-5 h-5" />
+                Add Notice
+              </button>
+            ) : undefined
+          }
+        />
+      )}
+
+      {hideHeader && canAddNotices && (
+        <div className="flex justify-end mb-6">
+          <button 
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Add Notice
+          </button>
+        </div>
+      )}
 
       {showForm && canAddNotices && (
         <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-100 shadow-sm mb-8 animate-in slide-in-from-bottom-4 fade-in duration-300">

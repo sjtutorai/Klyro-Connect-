@@ -854,11 +854,22 @@ export default function Institutions() {
                                     status: 'Active',
                                     code: inst.code || generatedInstCode
                                   });
-                                  alert(`Institution Accepted! Tell them to sign up with Code: ${inst.code || generatedInstCode}`);
+                                  if (inst.adminUid) {
+                                    await updateDoc(doc(db, 'users', inst.adminUid), {
+                                      status: 'Active'
+                                    });
+                                  }
+                                  alert(`Institution Accepted! They can now log in. Code: ${inst.code || generatedInstCode}`);
                                 } else {
+                                  const newStatus = inst.status === 'Active' ? 'Suspended' : 'Active';
                                   await updateDoc(doc(db, 'institutions', inst.id), {
-                                    status: inst.status === 'Active' ? 'Suspended' : 'Active'
+                                    status: newStatus
                                   });
+                                  if (inst.adminUid) {
+                                    await updateDoc(doc(db, 'users', inst.adminUid), {
+                                      status: newStatus
+                                    });
+                                  }
                                 }
                               } catch (err) {
                                 console.error(err);

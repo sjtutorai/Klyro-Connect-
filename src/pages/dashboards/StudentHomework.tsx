@@ -76,6 +76,9 @@ export default function StudentHomework() {
   const [photoUrl, setPhotoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -157,6 +160,46 @@ export default function StudentHomework() {
           setPhotoUrl(reader.result as string);
         };
         reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Could not access camera. Please check permissions.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setSelectedFile(dataUrl);
+        setPhotoUrl(dataUrl);
+        stopCamera();
       }
     }
   };
@@ -306,14 +349,36 @@ export default function StudentHomework() {
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">Attach Written Work Photo</label>
                       
                       <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                        <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
-                          <Camera className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2" />
+                        <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                          <Upload className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mb-2" />
                           <span className="text-xs font-bold text-slate-900 dark:text-white">Upload Image File</span>
-                          <span className="text-[11px] text-slate-400 mt-0.5">PNG, JPG or Camera Capture</span>
+                          <span className="text-[11px] text-slate-400 mt-0.5">PNG, JPG format</span>
                           <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                         </label>
+                        
+                        <button type="button" onClick={startCamera} className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition text-left">
+                          <Camera className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mb-2" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">Take Live Photo</span>
+                          <span className="text-[11px] text-slate-400 mt-0.5">Use your device camera</span>
+                        </button>
+                      </div>
 
-                        <div className="flex flex-col justify-center">
+                      {showCamera && (
+                        <div className="mb-6 p-4 bg-slate-900 rounded-2xl flex flex-col items-center relative">
+                          <video ref={videoRef} className="w-full max-w-md rounded-xl bg-black aspect-video object-cover" playsInline muted></video>
+                          <canvas ref={canvasRef} className="hidden"></canvas>
+                          <div className="flex items-center gap-3 mt-4">
+                            <button type="button" onClick={capturePhoto} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition">
+                              Capture Photo
+                            </button>
+                            <button type="button" onClick={stopCamera} className="px-6 py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col justify-center mb-6">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Or enter Image URL</span>
                           <input 
                             type="url" 
@@ -326,7 +391,6 @@ export default function StudentHomework() {
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs outline-none focus:border-indigo-500"
                           />
                         </div>
-                      </div>
 
                       {(selectedFile || photoUrl) && (
                         <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-800">

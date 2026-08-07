@@ -55,14 +55,20 @@ export default function Students() {
     if (!editingStudent) return;
     setIsSubmitting(true);
     try {
-      await updateDoc(doc(db, 'users', editingStudent.id), {
+      const updateData: any = {
         name: editingStudent.name,
         assignedClass: editingStudent.assignedClass,
         phone: editingStudent.phone || '',
         rollNumber: editingStudent.rollNumber || '',
         status: editingStudent.status || 'Active'
-      });
-      alert("Student details and Class/Section assignment updated!");
+      };
+      
+      if (editingStudent.password) {
+        updateData.password = editingStudent.password;
+      }
+
+      await updateDoc(doc(db, 'users', editingStudent.id), updateData);
+      alert("Student details updated!");
       setEditingStudent(null);
     } catch (error) {
       console.error("Error updating student:", error);
@@ -356,6 +362,16 @@ export default function Students() {
                   onChange={e => setEditingStudent({...editingStudent, rollNumber: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
                   placeholder="e.g. STU-1002"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                <input 
+                  type="text" 
+                  value={editingStudent.password || ''}
+                  onChange={e => setEditingStudent({...editingStudent, password: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                  placeholder="Update student password"
                 />
               </div>
 
