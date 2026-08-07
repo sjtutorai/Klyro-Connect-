@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { seedDefaultInstitutions } from './lib/seedInstitutions';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -27,6 +26,7 @@ import Notices from './pages/dashboards/Notices';
 import StudyGroups from './pages/dashboards/StudyGroups';
 import ClassesAndSections from './pages/dashboards/ClassesAndSections';
 import InstitutionSettings from './pages/dashboards/InstitutionSettings';
+import RegistrationRequests from './pages/dashboards/RegistrationRequests';
 import SuperAdminSettings from './pages/dashboards/SuperAdminSettings';
 import Analytics from './pages/dashboards/Analytics';
 
@@ -71,10 +71,6 @@ const DashboardRedirect = () => {
 };
 
 export default function App() {
-  useEffect(() => {
-    seedDefaultInstitutions();
-  }, []);
-
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -100,6 +96,7 @@ export default function App() {
               <Route path="super-admin/*" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
               
               <Route path="institution" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><InstitutionDashboard /></ProtectedRoute>} />
+              <Route path="institution/requests" element={<ProtectedRoute allowedRoles={['INSTITUTION', 'SUPER_ADMIN']}><RegistrationRequests /></ProtectedRoute>} />
               <Route path="institution/classes" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><ClassesAndSections /></ProtectedRoute>} />
               <Route path="institution/study-groups" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><StudyGroups /></ProtectedRoute>} />
               <Route path="institution/complaints" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Complaints /></ProtectedRoute>} />

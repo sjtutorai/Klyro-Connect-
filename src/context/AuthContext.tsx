@@ -14,6 +14,7 @@ export type User = {
   address?: string;
   website?: string;
   schoolCode?: string;
+  status?: 'Pending' | 'Active' | 'Approved' | 'Rejected';
 };
 
 type AuthContextType = {

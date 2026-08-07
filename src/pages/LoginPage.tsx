@@ -6,7 +6,6 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { doc, setDoc, getDocs, collection, query, where, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { GraduationCap, Mail, Lock, ArrowRight, Loader2, AlertCircle, Shield, Building2, Users, UserCheck, Eye, EyeOff, KeyRound, Sparkles, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { seedDefaultInstitutions } from '../lib/seedInstitutions';
 
 export default function LoginPage() {
   const [authMode, setAuthMode] = useState<'signIn' | 'signUp'>('signIn');
@@ -33,8 +32,6 @@ export default function LoginPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    seedDefaultInstitutions();
-
     if (user) {
       switch (user.role) {
         case 'SUPER_ADMIN': navigate('/dashboard/super-admin'); break;
@@ -126,26 +123,8 @@ export default function LoginPage() {
         }
       });
 
-      // Fallback: If no institution exists in DB at all, auto-create a default institution for this code
-      if (!matchedInst && instsSnap.empty) {
-        const newInstRef = doc(collection(db, 'institutions'));
-        const newInstData = {
-          name: `Campus OS Network (${cleanInstCode})`,
-          code: cleanInstCode.startsWith('INST-') ? cleanInstCode : `INST-${cleanInstCode}`,
-          status: 'Active',
-          studentsCount: 1,
-          teachersCount: 1,
-          createdAt: serverTimestamp()
-        };
-        await setDoc(newInstRef, newInstData);
-        matchedInst = { id: newInstRef.id, ...newInstData };
-      }
-
       if (!matchedInst) {
-        const hints = availableInstCodes.length > 0 
-          ? ` (Available sample codes: ${availableInstCodes.slice(0, 3).join(', ')})`
-          : '';
-        setError(`Invalid Institution Code "${cleanInstCode}". Please request the official code from your school administrator.${hints}`);
+        setError(`Invalid Institution Code "${cleanInstCode}". Please request the official code from your school administrator or super admin.`);
         setIsLoading(false);
         return;
       }
@@ -231,9 +210,37 @@ export default function LoginPage() {
         }
       }
 
+      userPayload.status = signUpRole === 'INSTITUTION' ? 'Active' : 'Pending';
+
       await setDoc(doc(db, 'users', uid), userPayload);
 
-      setSuccessMsg(`🎉 Account created successfully! Welcome to ${matchedInst.name}.`);
+      // Create Registration Request for Institution Approval (only for students/teachers)
+      if (signUpRole !== 'INSTITUTION') {
+        try {
+          const reqRef = doc(collection(db, 'registration_requests'));
+          await setDoc(reqRef, {
+            id: reqRef.id,
+            uid: uid,
+            name: signUpName.trim(),
+            email: signUpEmail.trim(),
+            role: signUpRole,
+            institutionId: matchedInst.id,
+            institutionName: matchedInst.name || 'Campus OS Partner',
+            classId: matchedClass?.id || null,
+            className: matchedClass?.fullTitle || matchedClass?.className || null,
+            subject: signUpRole === 'TEACHER' ? (signUpSubject.trim() || 'General Subject') : null,
+            institutionCode: cleanInstCode,
+            classCode: cleanClassCode || null,
+            status: 'Pending',
+            createdAt: serverTimestamp()
+          });
+        } catch (reqErr) {
+          console.warn("Error creating registration_request doc:", reqErr);
+        }
+        setSuccessMsg(`🎉 Application submitted! A sign-up request has been sent to ${matchedInst.name}. An administrator will review and accept your application shortly.`);
+      } else {
+        setSuccessMsg(`🎉 Institution Account successfully linked to ${matchedInst.name}! You can now sign in to your dashboard.`);
+      }
     } catch (err: any) {
       console.error("Sign up error:", err);
       if (err.code === 'auth/email-already-in-use') {
@@ -398,7 +405,7 @@ export default function LoginPage() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
                   I am signing up as a:
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setSignUpRole('STUDENT')}
@@ -413,7 +420,6 @@ export default function LoginPage() {
                     </div>
                     <div>
                       <span className="block text-xs font-extrabold">Student</span>
-                      <span className="block text-[10px] text-slate-400">Enrolled in Class</span>
                     </div>
                   </button>
 
@@ -431,7 +437,23 @@ export default function LoginPage() {
                     </div>
                     <div>
                       <span className="block text-xs font-extrabold">Teacher</span>
-                      <span className="block text-[10px] text-slate-400">Faculty Staff</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setSignUpRole('INSTITUTION')}
+                    className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                      signUpRole === 'INSTITUTION'
+                        ? 'border-indigo-500 bg-indigo-950/60 text-white shadow-lg shadow-indigo-950/50'
+                        : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl ${signUpRole === 'INSTITUTION' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-extrabold">Institution</span>
                     </div>
                   </button>
                 </div>

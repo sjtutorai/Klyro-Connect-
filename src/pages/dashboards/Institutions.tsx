@@ -848,15 +848,24 @@ export default function Institutions() {
                               e.stopPropagation();
                               setActiveDropdown(null);
                               try {
-                                await updateDoc(doc(db, 'institutions', inst.id), {
-                                  status: inst.status === 'Active' ? 'Suspended' : 'Active'
-                                });
+                                if (inst.status === 'Pending') {
+                                  const generatedInstCode = `INST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+                                  await updateDoc(doc(db, 'institutions', inst.id), {
+                                    status: 'Active',
+                                    code: inst.code || generatedInstCode
+                                  });
+                                  alert(`Institution Accepted! Tell them to sign up with Code: ${inst.code || generatedInstCode}`);
+                                } else {
+                                  await updateDoc(doc(db, 'institutions', inst.id), {
+                                    status: inst.status === 'Active' ? 'Suspended' : 'Active'
+                                  });
+                                }
                               } catch (err) {
                                 console.error(err);
                               }
                             }}
                           >
-                            <Edit className="w-3.5 h-3.5 text-indigo-500" /> {inst.status === 'Active' ? 'Suspend Access' : 'Activate School'}
+                            <Edit className="w-3.5 h-3.5 text-indigo-500" /> {inst.status === 'Pending' ? 'Accept & Generate Code' : (inst.status === 'Active' ? 'Suspend Access' : 'Activate School')}
                           </button>
                           <button 
                             className="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl flex items-center gap-2 transition"

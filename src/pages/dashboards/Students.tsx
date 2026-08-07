@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
-import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Lock, Phone } from 'lucide-react';
-import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Lock, Phone, CheckCircle2, XCircle } from 'lucide-react';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -69,6 +69,37 @@ export default function Students() {
       alert("Failed to update student.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAcceptStudent = async (student: Student) => {
+    try {
+      await updateDoc(doc(db, 'users', student.id), { status: 'Active' });
+      const q = query(collection(db, 'registration_requests'), where('uid', '==', student.id));
+      const snap = await getDocs(q);
+      snap.forEach(async (d) => {
+        await updateDoc(doc(db, 'registration_requests', d.id), { status: 'Approved' });
+      });
+      alert(`✅ Student ${student.name} has been accepted and activated!`);
+    } catch (err) {
+      console.error("Error accepting student:", err);
+      alert("Failed to accept student.");
+    }
+  };
+
+  const handleDeclineStudent = async (student: Student) => {
+    if (!confirm(`Decline registration request for student ${student.name}?`)) return;
+    try {
+      await updateDoc(doc(db, 'users', student.id), { status: 'Rejected' });
+      const q = query(collection(db, 'registration_requests'), where('uid', '==', student.id));
+      const snap = await getDocs(q);
+      snap.forEach(async (d) => {
+        await updateDoc(doc(db, 'registration_requests', d.id), { status: 'Declined' });
+      });
+      alert(`❌ Student ${student.name} registration request was declined.`);
+    } catch (err) {
+      console.error("Error declining student:", err);
+      alert("Failed to decline student.");
     }
   };
 
@@ -401,10 +432,34 @@ export default function Students() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge variant="success" dot>Active</Badge>
+                    {student.status === 'Pending' ? (
+                      <Badge variant="warning">Pending Approval</Badge>
+                    ) : student.status === 'Rejected' ? (
+                      <Badge variant="danger">Declined</Badge>
+                    ) : (
+                      <Badge variant="success" dot>Active</Badge>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
+                      {student.status === 'Pending' && (
+                        <>
+                          <button
+                            onClick={() => handleAcceptStudent(student)}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-xs"
+                            title="Accept Student Application"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Accept
+                          </button>
+                          <button
+                            onClick={() => handleDeclineStudent(student)}
+                            className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                            title="Decline Student Application"
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> Decline
+                          </button>
+                        </>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="sm"

@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, Users, GraduationCap, 
   BookOpen, Calendar, Bell, FileBarChart, MessageSquareWarning, MessagesSquare,
   Settings, LogOut, Menu, X, Sun, Moon, Search, ChevronLeft, ChevronRight,
-  Shield, Sparkles, Check, ExternalLink, UserCircle
+  Shield, Sparkles, Check, ExternalLink, UserCircle, UserCheck
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,6 +20,7 @@ const ROLE_NAVS = {
   ],
   INSTITUTION: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/institution' },
+    { name: 'Requests', icon: UserCheck, path: '/dashboard/institution/requests' },
     { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/institution/study-groups' },
     { name: 'Classes & Sections', icon: BookOpen, path: '/dashboard/institution/classes' },
     { name: 'Teachers', icon: Users, path: '/dashboard/institution/teachers' },
