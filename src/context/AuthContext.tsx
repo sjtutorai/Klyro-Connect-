@@ -9,12 +9,19 @@ export type User = {
   name: string;
   role: 'SUPER_ADMIN' | 'INSTITUTION' | 'TEACHER' | 'STUDENT';
   institutionId?: string | null;
+  institutionName?: string;
+  phone?: string;
+  address?: string;
+  website?: string;
+  schoolCode?: string;
 };
 
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  updateUserPartial: (fields: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -73,12 +80,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
+  const refreshUser = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        setUser({ id: auth.currentUser.uid, ...userDoc.data() } as User);
+      }
+    } catch (err) {
+      console.error("Error refreshing user:", err);
+    }
+  };
+
+  const updateUserPartial = (fields: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...fields } : null);
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, logout, refreshUser, updateUserPartial }}>
       {children}
     </AuthContext.Provider>
   );

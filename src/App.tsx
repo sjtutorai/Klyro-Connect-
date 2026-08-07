@@ -25,6 +25,7 @@ import Events from './pages/dashboards/Events';
 import Notices from './pages/dashboards/Notices';
 import StudyGroups from './pages/dashboards/StudyGroups';
 import ClassesAndSections from './pages/dashboards/ClassesAndSections';
+import InstitutionSettings from './pages/dashboards/InstitutionSettings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="institution/events" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Events /></ProtectedRoute>} />
               <Route path="institution/timetable" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Timetable /></ProtectedRoute>} />
               <Route path="institution/notices" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Notices /></ProtectedRoute>} />
+              <Route path="institution/settings" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><InstitutionSettings /></ProtectedRoute>} />
               <Route path="institution/*" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
 
               <Route path="teacher" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherDashboard /></ProtectedRoute>} />
