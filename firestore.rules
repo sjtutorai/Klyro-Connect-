@@ -29,12 +29,19 @@ service cloud.firestore {
     match /classes/{classId} {
       allow read, write: if true;
     }
+    match /timetables/{timetableId} {
+      allow read, write: if true;
+    }
     match /study_groups/{groupId} {
       allow read, write: if true;
       match /messages/{messageId} {
         allow read, write: if true;
       }
     }
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
 }
+
 

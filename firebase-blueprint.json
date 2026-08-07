@@ -72,6 +72,9 @@
         "$ref": "Complaint"
       },
       "description": "Complaints collection."
+    },
+    "/timetables/{timetableId}": {
+      "description": "Timetables collection."
     }
   }
 }
