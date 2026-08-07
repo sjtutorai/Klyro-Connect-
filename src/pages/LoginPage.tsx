@@ -65,7 +65,7 @@ export default function LoginPage() {
           Sign in to Campus OS
         </h2>
         <p className="text-xs text-slate-400">
-          Enter your credentials or click a quick-demo account below
+          Enter your email address and password to access your portal
         </p>
       </div>
 
@@ -152,63 +152,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Login Chips */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center">
-              Quick 1-Click Role Login Shortcuts
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('superadmin@vaks.ai')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition flex items-center gap-2"
-              >
-                <Shield className="w-4 h-4 text-purple-400 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">Super Admin</p>
-                  <p className="text-[10px] text-slate-500 truncate">Platform Control</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('institution@vaks.ai')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition flex items-center gap-2"
-              >
-                <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">Institution</p>
-                  <p className="text-[10px] text-slate-500 truncate">School Management</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('teacher@vaks.ai')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition flex items-center gap-2"
-              >
-                <Users className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">Faculty / Teacher</p>
-                  <p className="text-[10px] text-slate-500 truncate">Classes & Grading</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('student@vaks.ai')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition flex items-center gap-2"
-              >
-                <UserCircle className="w-4 h-4 text-sky-400 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">Student</p>
-                  <p className="text-[10px] text-slate-500 truncate">Homework & Events</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
         </div>
       </motion.div>
     </div>

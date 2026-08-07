@@ -114,7 +114,7 @@ export default function LandingPage() {
               to="/login" 
               className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold text-sm transition shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2"
             >
-              Explore Demo Portals <ArrowRight className="w-4 h-4" />
+              Sign In to Portal <ArrowRight className="w-4 h-4" />
             </Link>
             <button 
               onClick={() => setShowRegisterModal(true)} 

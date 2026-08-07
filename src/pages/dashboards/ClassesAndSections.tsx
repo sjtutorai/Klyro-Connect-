@@ -529,45 +529,62 @@ export default function ClassesAndSections() {
               {/* Subject Teachers Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Subject Teachers Mapping</label>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Subject Teachers Mapping</label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Assigned teachers cannot be reassigned to multiple subjects in this class.</p>
+                  </div>
                   <Button type="button" variant="ghost" size="sm" onClick={handleAddSubjectPair} icon={<Plus className="w-3.5 h-3.5" />}>
                     Add Subject
                   </Button>
                 </div>
 
                 <div className="space-y-3">
-                  {subjectTeacherPairs.map((pair, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
-                      <input 
-                        type="text"
-                        placeholder="Subject Name (e.g. Physics)"
-                        value={pair.subject}
-                        onChange={e => handleSubjectPairChange(index, 'subject', e.target.value)}
-                        className="w-full sm:w-1/3 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                      />
-                      <select
-                        value={pair.teacherId}
-                        onChange={e => handleSubjectPairChange(index, 'teacherId', e.target.value)}
-                        className="w-full sm:w-2/3 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                      >
-                        <option value="">-- Select Teacher --</option>
-                        {teachers.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} {t.subject ? `[${t.subject}]` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {subjectTeacherPairs.length > 1 && (
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveSubjectPair(index)}
-                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg shrink-0"
+                  {subjectTeacherPairs.map((pair, index) => {
+                    const otherAssignedTeacherIds = subjectTeacherPairs
+                      .filter((_, idx) => idx !== index)
+                      .map(p => p.teacherId)
+                      .filter(Boolean);
+
+                    return (
+                      <div key={index} className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                        <input 
+                          type="text"
+                          placeholder="Subject Name (e.g. Physics)"
+                          value={pair.subject}
+                          onChange={e => handleSubjectPairChange(index, 'subject', e.target.value)}
+                          className="w-full sm:w-1/3 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                        />
+                        <select
+                          value={pair.teacherId}
+                          onChange={e => handleSubjectPairChange(index, 'teacherId', e.target.value)}
+                          className="w-full sm:w-2/3 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          <option value="">-- Select Teacher --</option>
+                          {teachers.map(t => {
+                            const isAssignedElsewhere = otherAssignedTeacherIds.includes(t.id);
+                            return (
+                              <option 
+                                key={t.id} 
+                                value={t.id}
+                                disabled={isAssignedElsewhere}
+                              >
+                                {t.name} {t.subject ? `[${t.subject}]` : ''} {isAssignedElsewhere ? '🔒 (Already assigned)' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {subjectTeacherPairs.length > 1 && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveSubjectPair(index)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
