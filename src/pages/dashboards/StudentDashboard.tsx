@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, StatCard, Card, Badge, Button } from '../../components/ui';
 import { BookOpen, CalendarCheck, Clock, Bell, ArrowRight, Sparkles, MessagesSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFirestoreStats } from '../../lib/useFirestoreStats';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 const attendanceData = [
   { name: 'Mon', present: 100 },
@@ -18,6 +20,40 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const stats = useFirestoreStats();
+  
+  const [homeworks, setHomeworks] = useState<any[]>([]);
+  const [notices, setNotices] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const hwQuery = query(collection(db, 'homeworks'));
+    const unsubHw = onSnapshot(hwQuery, snapshot => {
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (!user.institutionId || !data.institutionId || data.institutionId === user.institutionId) {
+          list.push({ id: doc.id, ...data });
+        }
+      });
+      list.sort((a, b) => b.createdAt?.toMillis?.() - a.createdAt?.toMillis?.() || 0);
+      setHomeworks(list.slice(0, 3));
+    });
+
+    const notQuery = query(collection(db, 'notices'));
+    const unsubNot = onSnapshot(notQuery, snapshot => {
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (!user.institutionId || !data.institutionId || data.institutionId === user.institutionId) {
+          list.push({ id: doc.id, ...data });
+        }
+      });
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setNotices(list.slice(0, 3));
+    });
+
+    return () => { unsubHw(); unsubNot(); };
+  }, [user]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -82,10 +118,12 @@ export default function StudentDashboard() {
               </div>
 
               <div className="space-y-3">
-                {[
-                  { subject: 'Mathematics', title: 'Algebra Equations Exercise 4.2', due: 'Tomorrow, 10:00 AM', status: 'pending' },
-                  { subject: 'Physics Lab', title: 'Newton\'s Laws Lab Report', due: 'Friday, 11:59 PM', status: 'pending' },
-                ].map((hw, i) => (
+                {homeworks.length === 0 ? (
+                  <div className="p-4 text-center text-slate-500 text-sm">
+                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                    No homework assigned yet.
+                  </div>
+                ) : homeworks.map((hw, i) => (
                   <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800 transition gap-4">
                     <div className="flex items-start gap-3.5">
                       <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
@@ -93,9 +131,8 @@ export default function StudentDashboard() {
                       </div>
                       <div>
                         <h4 className="font-bold text-sm text-slate-900 dark:text-white">{hw.title}</h4>
-                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{hw.subject}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-1">
-                          <Clock className="w-3.5 h-3.5" /> Due: {hw.due}
+                          <Clock className="w-3.5 h-3.5" /> Due: {hw.dueDate}
                         </p>
                       </div>
                     </div>
@@ -150,19 +187,19 @@ export default function StudentDashboard() {
               </div>
 
               <div className="space-y-3">
-                {[
-                  { title: 'School Closed on Friday due to heavy rain alert.', date: 'Today, 08:30 AM', important: true },
-                  { title: 'New library books added for Grade 10.', date: 'Yesterday, 14:00 PM', important: false },
-                  { title: 'Submit sports day participation forms.', date: 'Oct 20, 10:00 AM', important: false },
-                ].map((notice, i) => (
-                  <div key={i} className={`p-3.5 rounded-2xl border ${notice.important ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/60' : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'}`}>
+                {notices.length === 0 ? (
+                  <div className="p-4 text-center text-slate-500 text-sm">
+                    No recent notices.
+                  </div>
+                ) : notices.map((notice, i) => (
+                  <div key={i} className={`p-3.5 rounded-2xl border ${notice.type === 'Event' || notice.type === 'Emergency' ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/60' : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'}`}>
                     <div className="flex items-start gap-3">
-                      <div className={`mt-0.5 p-1.5 rounded-lg ${notice.important ? 'text-rose-600 bg-rose-100 dark:bg-rose-900/60' : 'text-slate-400 bg-slate-200 dark:bg-slate-700'}`}>
+                      <div className={`mt-0.5 p-1.5 rounded-lg ${notice.type === 'Event' || notice.type === 'Emergency' ? 'text-rose-600 bg-rose-100 dark:bg-rose-900/60' : 'text-slate-400 bg-slate-200 dark:bg-slate-700'}`}>
                         <Bell className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className={`text-xs font-bold ${notice.important ? 'text-rose-900 dark:text-rose-200' : 'text-slate-900 dark:text-white'}`}>{notice.title}</p>
-                        <p className={`text-[10px] mt-1 ${notice.important ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>{notice.date}</p>
+                        <p className={`text-xs font-bold ${notice.type === 'Event' || notice.type === 'Emergency' ? 'text-rose-900 dark:text-rose-200' : 'text-slate-900 dark:text-white'}`}>{notice.title}</p>
+                        <p className={`text-[10px] mt-1 ${notice.type === 'Event' || notice.type === 'Emergency' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>{notice.date}</p>
                       </div>
                     </div>
                   </div>

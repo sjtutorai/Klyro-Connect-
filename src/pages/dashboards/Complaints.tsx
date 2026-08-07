@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, ConfirmModal } from '../../components/ui';
-import { MessageSquareWarning, Plus, Search, Filter, Clock, Loader2, Trash2, Sparkles, UserX, Shield, Globe, CheckCircle2 } from 'lucide-react';
+import { MessageSquareWarning, Plus, Search, Filter, Clock, Loader2, Trash2, Sparkles, UserX, Shield, Globe, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { compressImageFile } from '../../lib/imageUtils';
 
 type Complaint = {
   id: string;
@@ -18,6 +19,7 @@ type Complaint = {
   isAnonymous?: boolean;
   visibility?: string;
   institutionId?: string;
+  photoUrl?: string;
 };
 
 export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
@@ -38,7 +40,8 @@ export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
     priority: 'Low',
     description: '',
     isAnonymous: false,
-    visibility: 'Authorities' // Authorities or Public
+    visibility: 'Authorities', // Authorities or Public
+    photoUrl: ''
   });
 
   useEffect(() => {
@@ -78,6 +81,18 @@ export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
     return () => unsubscribe();
   }, [user]);
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await compressImageFile(file);
+      setFormData(prev => ({ ...prev, photoUrl: base64 }));
+    } catch (err) {
+      console.error("Error compressing image:", err);
+      alert("Failed to compress image.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -94,7 +109,7 @@ export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
         createdAt: serverTimestamp()
       });
       setShowForm(false);
-      setFormData({ title: '', category: 'Academic', priority: 'Low', description: '', isAnonymous: false, visibility: 'Authorities' });
+      setFormData({ title: '', category: 'Academic', priority: 'Low', description: '', isAnonymous: false, visibility: 'Authorities', photoUrl: '' });
     } catch (error) {
       console.error("Error adding complaint:", error);
       alert("Failed to submit complaint.");
@@ -361,6 +376,35 @@ export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
                   placeholder="Provide full details regarding the incident or request..."
                 ></textarea>
               </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Photo / Image (Optional)</label>
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-slate-300 hover:bg-slate-50 cursor-pointer transition w-full">
+                      <ImageIcon className="h-5 w-5 text-slate-400" />
+                      <span className="text-sm text-slate-600 flex-1 truncate">
+                        {formData.photoUrl ? 'Image Selected' : 'Upload an image...'}
+                      </span>
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                  {formData.photoUrl && (
+                    <button 
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-4 pt-4 border-t border-slate-100">
@@ -429,6 +473,13 @@ export default function Complaints({ hideHeader }: { hideHeader?: boolean }) {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mb-2 line-clamp-2">{complaint.description}</p>
+                        {complaint.photoUrl && (
+                          <div className="mb-2">
+                            <a href={complaint.photoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md font-medium">
+                              <ImageIcon className="w-3.5 h-3.5" /> View Photo
+                            </a>
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDate(complaint.createdAt)}</span>
                           <span className="font-semibold text-indigo-600 flex items-center gap-1">

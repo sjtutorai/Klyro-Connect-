@@ -19,7 +19,7 @@ export default function SuperAdminSettings() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Tab 1: General Platform Config
-  const [platformName, setPlatformName] = useState('VAKS AI Campus OS');
+  const [platformName, setPlatformName] = useState('Klyro Connect AI Campus OS');
   const [supportEmail, setSupportEmail] = useState('admin@vaks.edu');
   const [supportPhone, setSupportPhone] = useState('+1 (800) 555-VAKS');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -307,7 +307,7 @@ export default function SuperAdminSettings() {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Platform Branding & Default Presets</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Configure core metadata for the VAKS AI Campus OS ecosystem</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Configure core metadata for the Klyro Connect AI Campus OS ecosystem</p>
             </div>
           </div>
 

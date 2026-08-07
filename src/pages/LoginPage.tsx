@@ -265,7 +265,7 @@ export default function LoginPage() {
             <GraduationCap className="h-8 w-8 text-white" />
           </div>
           <span className="text-2xl font-black tracking-tight text-white">
-            VAKS <span className="text-indigo-400">AI</span>
+            Klyro Connect <span className="text-indigo-400">AI</span>
           </span>
         </Link>
         <h2 className="text-3xl font-extrabold text-white tracking-tight">

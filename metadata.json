@@ -1,5 +1,5 @@
 {
-  "name": "VAKS AI",
+  "name": "Klyro Connect AI",
   "description": "School management platform for Institutions, Teachers, and Students with Attendance, Homework submission with photos, Complaints moderation & AI cleanup, Events, Notices, Timetables, and Study Groups.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

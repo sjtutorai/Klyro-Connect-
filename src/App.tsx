@@ -40,7 +40,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm font-semibold tracking-wider text-slate-300">Loading VAKS AI...</span>
+          <span className="text-sm font-semibold tracking-wider text-slate-300">Loading Klyro Connect AI...</span>
         </div>
       </div>
     );
@@ -89,7 +89,7 @@ export default function App() {
               <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-4">
                 <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center text-2xl font-bold mb-4">!</div>
                 <h1 className="text-3xl font-extrabold mb-2">Access Denied</h1>
-                <p className="text-slate-400 mb-8 max-w-md text-center">You do not have permission to view this section of VAKS AI.</p>
+                <p className="text-slate-400 mb-8 max-w-md text-center">You do not have permission to view this section of Klyro Connect AI.</p>
                 <a href="/" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/30">Return Home</a>
               </div>
             } />

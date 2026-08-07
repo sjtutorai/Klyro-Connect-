@@ -90,7 +90,7 @@ export default function LandingPage() {
             <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <span className="text-xl font-black tracking-tight text-white flex items-center gap-1">
-            VAKS <span className="text-indigo-400">AI</span>
+            Klyro Connect <span className="text-indigo-400">AI</span>
           </span>
         </div>
 
@@ -136,7 +136,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-400 leading-relaxed mb-10 max-w-2xl mx-auto font-normal">
-            VAKS AI connects Main Institutions, Teachers, and Students through automated attendance, photo homework grading, AI cleanup moderation, and study channels.
+            Klyro Connect AI connects Main Institutions, Teachers, and Students through automated attendance, photo homework grading, AI cleanup moderation, and study channels.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -349,7 +349,7 @@ export default function LandingPage() {
       <footer className="bg-slate-950 border-t border-slate-800/80 py-8 px-6 sm:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2">
           <GraduationCap className="w-4 h-4 text-indigo-400" />
-          <span>© {new Date().getFullYear()} VAKS AI. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} Klyro Connect AI. All rights reserved.</span>
         </div>
         <div className="flex items-center gap-6">
           <a href="#" className="hover:text-slate-300 transition">Privacy Policy</a>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../../components/ui';
-import { Calendar as CalendarIcon, Plus, Loader2, MapPin, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Loader2, MapPin, Clock, Image as ImageIcon } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { compressImageFile } from '../../lib/imageUtils';
+import { Trash2 } from 'lucide-react';
 
 type EventData = {
   id: string;
@@ -14,6 +16,7 @@ type EventData = {
   location: string;
   createdBy: string;
   creatorName: string;
+  photoUrl?: string;
   createdAt: any;
 };
 
@@ -28,7 +31,8 @@ export default function Events({ hideHeader }: { hideHeader?: boolean }) {
     description: '',
     date: '',
     time: '',
-    location: ''
+    location: '',
+    photoUrl: ''
   });
 
   const canAddEvents = user?.role === 'INSTITUTION' || user?.role === 'TEACHER';
@@ -60,6 +64,18 @@ export default function Events({ hideHeader }: { hideHeader?: boolean }) {
     return () => unsubscribe();
   }, [user]);
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await compressImageFile(file);
+      setFormData(prev => ({ ...prev, photoUrl: base64 }));
+    } catch (err) {
+      console.error("Error compressing image:", err);
+      alert("Failed to compress image.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.institutionId || !canAddEvents) return;
@@ -75,7 +91,7 @@ export default function Events({ hideHeader }: { hideHeader?: boolean }) {
       });
       
       setShowForm(false);
-      setFormData({ title: '', description: '', date: '', time: '', location: '' });
+      setFormData({ title: '', description: '', date: '', time: '', location: '', photoUrl: '' });
       alert("Event added successfully.");
     } catch (error) {
       console.error("Error adding event:", error);
@@ -179,6 +195,35 @@ export default function Events({ hideHeader }: { hideHeader?: boolean }) {
                   placeholder="Event details..." 
                 />
               </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Photo / Image (Optional)</label>
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-slate-300 hover:bg-slate-50 cursor-pointer transition w-full">
+                      <ImageIcon className="h-5 w-5 text-slate-400" />
+                      <span className="text-sm text-slate-600 flex-1 truncate">
+                        {formData.photoUrl ? 'Image Selected' : 'Upload an image...'}
+                      </span>
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                  {formData.photoUrl && (
+                    <button 
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -206,7 +251,12 @@ export default function Events({ hideHeader }: { hideHeader?: boolean }) {
         ) : events.map((event) => (
           <div key={event.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
             <h3 className="text-lg font-bold text-slate-900 mb-2">{event.title}</h3>
-            <p className="text-slate-600 text-sm mb-6 flex-1 line-clamp-3">{event.description}</p>
+            <p className="text-slate-600 text-sm mb-4 flex-1">{event.description}</p>
+            {event.photoUrl && (
+              <div className="mb-4 rounded-xl overflow-hidden border border-slate-100">
+                <img src={event.photoUrl} alt="Event" className="w-full h-48 object-cover" />
+              </div>
+            )}
             
             <div className="space-y-3 pt-4 border-t border-slate-100">
               <div className="flex items-center gap-2 text-sm text-slate-600">

@@ -107,7 +107,7 @@ export default function DashboardLayout() {
             {!isSidebarCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1">
-                  VAKS <span className="text-indigo-600 dark:text-indigo-400">AI</span>
+                  Klyro Connect <span className="text-indigo-600 dark:text-indigo-400">AI</span>
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest -mt-1">
                   Campus OS
@@ -133,7 +133,7 @@ export default function DashboardLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-indigo-950 dark:text-indigo-200 truncate">
-                {user.institutionName || 'VAKS Campus Hub'}
+                {user.institutionName || 'Klyro Campus Hub'}
               </p>
               <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
                 {roleInfo.label}
@@ -373,7 +373,7 @@ export default function DashboardLayout() {
                   <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
                     <GraduationCap className="w-5 h-5" />
                   </div>
-                  <span className="text-xl font-extrabold text-slate-900 dark:text-white">VAKS AI</span>
+                  <span className="text-xl font-extrabold text-slate-900 dark:text-white">Klyro Connect AI</span>
                 </div>
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}

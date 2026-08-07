@@ -492,7 +492,7 @@ export default function InstitutionSettings() {
               <p className="text-xs text-slate-500 dark:text-slate-400">Configure AI timetable generators, automated attendance logs, and campus filters</p>
             </div>
           </div>
-          <Badge variant="warning">VAKS AI Engine</Badge>
+          <Badge variant="warning">Klyro Connect AI Engine</Badge>
         </div>
 
         <div className="space-y-4">

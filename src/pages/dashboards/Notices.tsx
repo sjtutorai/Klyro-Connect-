@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, ConfirmModal } from '../../components/ui';
-import { Bell, Plus, Loader2, Tag, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { Bell, Plus, Loader2, Tag, Calendar as CalendarIcon, Trash2, Image as ImageIcon } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { compressImageFile } from '../../lib/imageUtils';
 
 type NoticeData = {
   id: string;
@@ -13,6 +14,7 @@ type NoticeData = {
   type: string;
   createdBy: string;
   creatorName: string;
+  photoUrl?: string;
   createdAt: any;
 };
 
@@ -27,7 +29,8 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
     title: '',
     description: '',
     date: '',
-    type: 'Academic'
+    type: 'Academic',
+    photoUrl: ''
   });
 
   const canAddNotices = user?.role === 'INSTITUTION' || user?.role === 'TEACHER' || user?.role === 'SUPER_ADMIN';
@@ -59,6 +62,18 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
     return () => unsubscribe();
   }, [user]);
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await compressImageFile(file);
+      setFormData(prev => ({ ...prev, photoUrl: base64 }));
+    } catch (err) {
+      console.error("Error compressing image:", err);
+      alert("Failed to compress image.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canAddNotices) return;
@@ -75,7 +90,7 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
       });
       
       setShowForm(false);
-      setFormData({ title: '', description: '', date: '', type: 'Academic' });
+      setFormData({ title: '', description: '', date: '', type: 'Academic', photoUrl: '' });
       alert("Notice added successfully.");
     } catch (error) {
       console.error("Error adding notice:", error);
@@ -184,6 +199,35 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
                   placeholder="Notice details..." 
                 />
               </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Photo / Image (Optional)</label>
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-slate-300 hover:bg-slate-50 cursor-pointer transition w-full">
+                      <ImageIcon className="h-5 w-5 text-slate-400" />
+                      <span className="text-sm text-slate-600 flex-1 truncate">
+                        {formData.photoUrl ? 'Image Selected' : 'Upload an image...'}
+                      </span>
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                  {formData.photoUrl && (
+                    <button 
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -210,11 +254,11 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
           </div>
         ) : notices.map((notice) => (
           <div key={notice.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-hover hover:border-indigo-300">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hidden sm:block">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hidden sm:block shrink-0">
                 <Bell className="w-6 h-6" />
               </div>
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h3 className="text-lg font-bold text-slate-900">{notice.title}</h3>
                   <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full border border-slate-200">
@@ -222,6 +266,11 @@ export default function Notices({ hideHeader }: { hideHeader?: boolean }) {
                   </span>
                 </div>
                 <p className="text-slate-600 text-sm mb-3">{notice.description}</p>
+                {notice.photoUrl && (
+                  <div className="mb-3">
+                    <img src={notice.photoUrl} alt="Notice Attachment" className="max-w-full sm:max-w-sm rounded-xl border border-slate-200 object-cover" />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500">
                   <div className="flex items-center gap-1.5">
                     <CalendarIcon className="w-3.5 h-3.5" />
