@@ -107,12 +107,12 @@ export default function LandingPage() {
           >
             Sign In
           </Link>
-          <button 
-            onClick={() => setShowRegisterModal(true)} 
+          <Link 
+            to="/register-school" 
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20 flex items-center gap-2"
           >
             <Building2 className="w-4 h-4" /> Register Institution
-          </button>
+          </Link>
         </div>
       </nav>
 
@@ -146,12 +146,12 @@ export default function LandingPage() {
             >
               Sign In to Portal <ArrowRight className="w-4 h-4" />
             </Link>
-            <button 
-              onClick={() => setShowRegisterModal(true)} 
+            <Link 
+              to="/register-school" 
               className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-2xl font-bold text-sm transition flex items-center justify-center gap-2"
             >
               <Building2 className="w-4 h-4 text-indigo-400" /> Register Your Institution
-            </button>
+            </Link>
           </div>
         </motion.div>
 
@@ -269,7 +269,7 @@ export default function LandingPage() {
                     <p className="text-2xl font-extrabold text-amber-400 mt-1">2 Assignments</p>
                   </div>
                   <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-xs text-slate-400 font-medium">Upcoming Timetable</p>
+                    <p className="text-xs text-slate-400 font-medium">Upcoming Schedule</p>
                     <p className="text-2xl font-extrabold text-white mt-1">Maths @ 09:00 AM</p>
                   </div>
                   <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800">
@@ -310,7 +310,7 @@ export default function LandingPage() {
               icon={<BookOpen className="w-6 h-6" />}
               title="Faculty Workspace"
               color="emerald"
-              features={['Visual Attendance Register', 'Photo Homework Grading', 'Timetable Management']}
+              features={['Visual Attendance Register', 'Photo Homework Grading', 'Schedule Management']}
             />
             <FeatureCard 
               icon={<UserCircle className="w-6 h-6" />}

@@ -50,6 +50,7 @@ export default function InstitutionSettings() {
       try {
         if (user.institutionId) {
           const instDoc = await getDoc(doc(db, 'institutions', user.institutionId));
+          const fallbackCode = `INST-${user.institutionId.substring(0, 5).toUpperCase()}`;
           if (instDoc.exists()) {
             const data = instDoc.data();
             if (data.name) setName(data.name);
@@ -57,10 +58,21 @@ export default function InstitutionSettings() {
             if (data.phone) setPhone(data.phone);
             if (data.address) setAddress(data.address);
             if (data.website) setWebsite(data.website);
-            if (data.schoolCode) setSchoolCode(data.schoolCode);
+            const codeVal = data.code || data.schoolCode || data.institutionCode || fallbackCode;
+            setSchoolCode(codeVal);
             if (data.principalName) setPrincipalName(data.principalName);
             if (data.academicYear) setAcademicYear(data.academicYear);
             if (data.attendanceCutoff) setAttendanceCutoff(data.attendanceCutoff);
+
+            // Backfill code and schoolCode on Firestore institution doc if missing
+            if (!data.code || !data.schoolCode) {
+              await updateDoc(doc(db, 'institutions', user.institutionId), {
+                code: codeVal,
+                schoolCode: codeVal
+              }).catch(() => {});
+            }
+          } else {
+            setSchoolCode(fallbackCode);
           }
         }
       } catch (err) {
@@ -91,7 +103,6 @@ export default function InstitutionSettings() {
         phone,
         address,
         website,
-        schoolCode,
         institutionName: name,
       };
 
@@ -100,13 +111,15 @@ export default function InstitutionSettings() {
       // 2. Update Firestore institution document if institutionId exists
       if (user.institutionId) {
         const instRef = doc(db, 'institutions', user.institutionId);
+        const finalCode = schoolCode || `INST-${user.institutionId.substring(0, 5).toUpperCase()}`;
         await setDoc(instRef, {
           name,
           email,
           phone,
           address,
           website,
-          schoolCode,
+          code: finalCode,
+          schoolCode: finalCode,
           principalName,
           academicYear,
           attendanceCutoff,
@@ -130,7 +143,6 @@ export default function InstitutionSettings() {
         phone,
         address,
         website,
-        schoolCode,
         institutionName: name
       });
 
@@ -354,19 +366,25 @@ export default function InstitutionSettings() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                School Registration / Affiliation Code
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center justify-between">
+                <span>Institution Code (Permanent)</span>
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-200 dark:border-amber-800">
+                  <Lock className="w-3 h-3" /> Permanent & Immutable
+                </span>
               </label>
               <div className="relative">
-                <Shield className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input 
                   type="text" 
-                  value={schoolCode}
-                  onChange={(e) => setSchoolCode(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition font-mono" 
-                  placeholder="e.g. CBSE-890123 / REG-2026" 
+                  readOnly
+                  disabled
+                  value={schoolCode || (user?.institutionId ? `INST-${user.institutionId.substring(0, 5).toUpperCase()}` : 'INST-94821')}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-sm font-mono font-bold cursor-not-allowed select-all outline-none" 
                 />
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Generated upon acceptance of school registration. Permanent and unchangeable forever.
+              </p>
             </div>
 
             <div>
@@ -489,7 +507,7 @@ export default function InstitutionSettings() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">Gemini AI & System Automation</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Configure AI timetable generators, automated attendance logs, and campus filters</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Configure AI schedule generators, automated attendance logs, and campus filters</p>
             </div>
           </div>
           <Badge variant="warning">Klyro Connect AI Engine</Badge>
@@ -499,7 +517,7 @@ export default function InstitutionSettings() {
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800">
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" /> AI Timetable & Complaint Analytics
+                <Sparkles className="w-4 h-4 text-amber-500" /> AI Scheduling & Complaint Analytics
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Enable Gemini 3.6 Flash master scheduling algorithms and automatic spam complaint filtering.

@@ -51,6 +51,8 @@ export default function SuperAdminDashboard() {
 
   const handleUpdateStatus = async (req: any, newStatus: string) => {
     try {
+      const finalCode = req.code || req.schoolCode || `INST-${Math.floor(10000 + Math.random() * 90000)}`;
+
       if (newStatus === 'Active') {
         if (!req.email || !req.password) {
            alert('Institution is missing email or password');
@@ -71,7 +73,10 @@ export default function SuperAdminDashboard() {
           email: req.email,
           name: req.name,
           role: 'INSTITUTION',
-          institutionId: req.id
+          institutionId: req.id,
+          status: 'Active',
+          schoolCode: finalCode,
+          institutionCode: finalCode
         });
         
         await signOut(secondaryAuth);
@@ -79,9 +84,11 @@ export default function SuperAdminDashboard() {
       
       const docRef = doc(db, 'institutions', req.id);
       await updateDoc(docRef, {
-        status: newStatus
+        status: newStatus,
+        code: finalCode,
+        schoolCode: finalCode
       });
-      alert(`Institution ${newStatus.toLowerCase()} successfully.`);
+      alert(`✅ Institution request ${newStatus.toLowerCase()} successfully. Permanent Institution Code: ${finalCode}`);
     } catch (error) {
       console.error(`Error updating institution status to ${newStatus}:`, error);
       alert('Failed to update status. See console for details.');

@@ -25,7 +25,6 @@ const ROLE_NAVS = {
     { name: 'Classes & Sections', icon: BookOpen, path: '/dashboard/institution/classes' },
     { name: 'Teachers', icon: Users, path: '/dashboard/institution/teachers' },
     { name: 'Students', icon: GraduationCap, path: '/dashboard/institution/students' },
-    { name: 'Timetable', icon: Calendar, path: '/dashboard/institution/timetable' },
     { name: 'Communications', icon: Bell, path: '/dashboard/institution/communications' },
     { name: 'Settings', icon: Settings, path: '/dashboard/institution/settings' },
   ],
@@ -35,7 +34,6 @@ const ROLE_NAVS = {
     { name: 'My Students', icon: Users, path: '/dashboard/teacher/students' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/teacher/homework' },
     { name: 'Attendance', icon: Calendar, path: '/dashboard/teacher/attendance' },
-    { name: 'Timetable', icon: Calendar, path: '/dashboard/teacher/timetable' },
     { name: 'Communications', icon: Bell, path: '/dashboard/teacher/communications' },
   ],
   STUDENT: [
@@ -43,7 +41,6 @@ const ROLE_NAVS = {
     { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/student/study-groups' },
     { name: 'Homework', icon: BookOpen, path: '/dashboard/student/homework' },
     { name: 'Attendance', icon: Calendar, path: '/dashboard/student/attendance' },
-    { name: 'Timetable', icon: Calendar, path: '/dashboard/student/timetable' },
     { name: 'Communications', icon: Bell, path: '/dashboard/student/communications' },
   ]
 };
@@ -51,7 +48,7 @@ const ROLE_NAVS = {
 const MOCK_NOTIFICATIONS = [
   { id: '1', title: 'New Notice Published', time: '10m ago', unread: true },
   { id: '2', title: 'Homework Assignment Uploaded', time: '1h ago', unread: true },
-  { id: '3', title: 'Weekly Timetable Updated', time: '3h ago', unread: false },
+  { id: '3', title: 'New Event Scheduled', time: '3h ago', unread: false },
 ];
 
 export default function DashboardLayout() {

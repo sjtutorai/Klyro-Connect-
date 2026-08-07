@@ -120,7 +120,7 @@ export default function TeacherStudents() {
     <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader 
         title="Class Roster & Assigned Students" 
-        description="Students assigned by Principal according to your timetable and class section schedule."
+        description="Students assigned by Principal according to your class section schedule."
         badge="Faculty Portal"
         breadcrumbs={[{ label: 'Faculty' }, { label: 'Class Roster' }]}
         action={

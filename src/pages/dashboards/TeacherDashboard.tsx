@@ -54,7 +54,7 @@ export default function TeacherDashboard() {
 
       <div className="grid lg:grid-cols-3 gap-8">
         
-        {/* Today's Timetable */}
+        {/* Today's Schedule */}
         <Card className="lg:col-span-2 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -62,9 +62,9 @@ export default function TeacherDashboard() {
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Clock className="w-5 h-5 text-indigo-500" /> Today's Lecture Schedule
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Timetable slots and current session status</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Schedule slots and current session status</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/teacher/timetable')} icon={<ArrowRight className="w-3.5 h-3.5" />}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/teacher/classes')} icon={<ArrowRight className="w-3.5 h-3.5" />}>
                 Full Schedule
               </Button>
             </div>

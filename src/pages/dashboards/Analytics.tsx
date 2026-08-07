@@ -36,7 +36,7 @@ export default function Analytics() {
 
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const code = data.code || `INST-${docSnap.id.substring(0, 5).toUpperCase()}`;
+        const code = data.code || data.schoolCode || `INST-${docSnap.id.substring(0, 5).toUpperCase()}`;
         const tCount = data.teachersCount || 0;
         const sCount = data.studentsCount || 0;
         sumT += tCount;

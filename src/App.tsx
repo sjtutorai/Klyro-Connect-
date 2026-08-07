@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import SchoolRegistration from './pages/SchoolRegistration';
 import PendingApproval from './pages/PendingApproval';
 import DashboardLayout from './layouts/DashboardLayout';
 import SuperAdminDashboard from './pages/dashboards/SuperAdminDashboard';
@@ -15,7 +16,6 @@ import TeacherHomework from './pages/dashboards/TeacherHomework';
 import StudentHomework from './pages/dashboards/StudentHomework';
 import TeacherAttendance from './pages/dashboards/TeacherAttendance';
 import StudentAttendance from './pages/dashboards/StudentAttendance';
-import Timetable from './pages/dashboards/Timetable';
 import Complaints from './pages/dashboards/Complaints';
 import UnderConstruction from './pages/dashboards/UnderConstruction';
 
@@ -83,6 +83,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/register-school" element={<SchoolRegistration />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/pending-approval" element={<PendingApproval />} />
             <Route path="/unauthorized" element={
@@ -108,7 +109,6 @@ export default function App() {
               <Route path="institution/study-groups" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><StudyGroups /></ProtectedRoute>} />
               <Route path="institution/teachers" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Teachers /></ProtectedRoute>} />
               <Route path="institution/students" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Students /></ProtectedRoute>} />
-              <Route path="institution/timetable" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Timetable /></ProtectedRoute>} />
               <Route path="institution/communications" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><Communications /></ProtectedRoute>} />
               <Route path="institution/settings" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><InstitutionSettings /></ProtectedRoute>} />
               <Route path="institution/*" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
@@ -118,7 +118,6 @@ export default function App() {
               <Route path="teacher/students" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherStudents /></ProtectedRoute>} />
               <Route path="teacher/homework" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherHomework /></ProtectedRoute>} />
               <Route path="teacher/attendance" element={<ProtectedRoute allowedRoles={['TEACHER']}><TeacherAttendance /></ProtectedRoute>} />
-              <Route path="teacher/timetable" element={<ProtectedRoute allowedRoles={['TEACHER']}><Timetable /></ProtectedRoute>} />
               <Route path="teacher/communications" element={<ProtectedRoute allowedRoles={['TEACHER']}><Communications /></ProtectedRoute>} />
               <Route path="teacher/*" element={<ProtectedRoute allowedRoles={['TEACHER']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
 
@@ -126,7 +125,6 @@ export default function App() {
               <Route path="student/study-groups" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudyGroups /></ProtectedRoute>} />
               <Route path="student/homework" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentHomework /></ProtectedRoute>} />
               <Route path="student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
-              <Route path="student/timetable" element={<ProtectedRoute allowedRoles={['STUDENT']}><Timetable /></ProtectedRoute>} />
               <Route path="student/communications" element={<ProtectedRoute allowedRoles={['STUDENT']}><Communications /></ProtectedRoute>} />
               <Route path="student/*" element={<ProtectedRoute allowedRoles={['STUDENT']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
             </Route>

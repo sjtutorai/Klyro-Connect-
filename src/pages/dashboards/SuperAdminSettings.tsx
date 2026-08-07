@@ -28,7 +28,7 @@ export default function SuperAdminSettings() {
 
   // Tab 2: AI & Gemini Engine Config
   const [aiModel, setAiModel] = useState('gemini-3.6-flash');
-  const [enableTimetableAi, setEnableTimetableAi] = useState(true);
+  const [enableSchedulingAi, setEnableSchedulingAi] = useState(true);
   const [enableRosterParserAi, setEnableRosterParserAi] = useState(true);
   const [enableStudyGroupAi, setEnableStudyGroupAi] = useState(true);
   const [aiTemperature, setAiTemperature] = useState('0.7');
@@ -74,7 +74,7 @@ export default function SuperAdminSettings() {
           if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
           if (data.academicYear) setAcademicYear(data.academicYear);
           if (data.aiModel) setAiModel(data.aiModel);
-          if (data.enableTimetableAi !== undefined) setEnableTimetableAi(data.enableTimetableAi);
+          if (data.enableSchedulingAi !== undefined) setEnableSchedulingAi(data.enableSchedulingAi);
           if (data.enableRosterParserAi !== undefined) setEnableRosterParserAi(data.enableRosterParserAi);
           if (data.enableStudyGroupAi !== undefined) setEnableStudyGroupAi(data.enableStudyGroupAi);
           if (data.sessionTimeout) setSessionTimeout(data.sessionTimeout);
@@ -106,7 +106,7 @@ export default function SuperAdminSettings() {
         academicYear,
         allowPublicRegistration,
         aiModel,
-        enableTimetableAi,
+        enableSchedulingAi,
         enableRosterParserAi,
         enableStudyGroupAi,
         sessionTimeout,
@@ -402,7 +402,7 @@ export default function SuperAdminSettings() {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Gemini AI Model & Feature Toggles</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Manage global AI services including Timetable Generator and PDF/Excel Roster Parser</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Manage global AI services including Schedule Generator and PDF/Excel Roster Parser</p>
             </div>
           </div>
 
@@ -445,13 +445,13 @@ export default function SuperAdminSettings() {
 
               <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">AI Timetable & Conflict Generator</p>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">AI Schedule & Conflict Generator</p>
                   <p className="text-[11px] text-slate-500">Allows principals to auto-schedule non-overlapping subject slots for classes</p>
                 </div>
                 <input 
                   type="checkbox"
-                  checked={enableTimetableAi}
-                  onChange={e => setEnableTimetableAi(e.target.checked)}
+                  checked={enableSchedulingAi}
+                  onChange={e => setEnableSchedulingAi(e.target.checked)}
                   className="w-5 h-5 accent-indigo-600 cursor-pointer"
                 />
               </div>

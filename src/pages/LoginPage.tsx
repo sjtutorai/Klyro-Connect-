@@ -102,22 +102,32 @@ export default function LoginPage() {
 
       instsSnap.forEach((docSnap) => {
         const data = docSnap.data();
-        const rawCode = data.code || `INST-${docSnap.id.substring(0, 5).toUpperCase()}`;
+        const idShortCode = `INST-${docSnap.id.substring(0, 5).toUpperCase()}`;
+        const idFullCode = `INST-${docSnap.id.toUpperCase()}`;
+        const rawCode = data.code || data.schoolCode || data.institutionCode || idShortCode;
         availableInstCodes.push(rawCode);
 
-        const normCode = normalize(rawCode);
-        const normCodeStripped = normalize(rawCode.replace(/^INST-?/i, ''));
-        const normAffiliation = normalize(data.affiliationCode || '');
-        const normId = normalize(docSnap.id);
+        // Collect all possible valid code variations for robust matching
+        const possibleCodes = [
+          data.code,
+          data.schoolCode,
+          data.institutionCode,
+          idShortCode,
+          docSnap.id.substring(0, 5).toUpperCase(),
+          idFullCode,
+          docSnap.id,
+          data.affiliationCode
+        ].filter(Boolean) as string[];
+
+        const normCodes = possibleCodes.map(c => normalize(c));
+        const normCodesStripped = possibleCodes.map(c => normalize(c.replace(/^INST-?/i, '')));
         const normName = normalize(data.name || '');
 
+        const allNorms = Array.from(new Set([...normCodes, ...normCodesStripped]));
+
         if (
-          normInstInput === normCode ||
-          normInstInput === normCodeStripped ||
-          (normAffiliation && (normInstInput === normAffiliation || normAffiliation.includes(normInstInput) || normInstInput.includes(normAffiliation))) ||
-          (normId && (normInstInput === normId || normId.includes(normInstInput) || normInstInput.includes(normId))) ||
-          (normCode && normCode.includes(normInstInput)) ||
-          (normName && normName.includes(normInstInput))
+          allNorms.some(n => n && (normInstInput === n || n.includes(normInstInput) || normInstInput.includes(n))) ||
+          (normName && normName.length >= 3 && normName.includes(normInstInput))
         ) {
           matchedInst = { id: docSnap.id, ...data, code: rawCode };
         }

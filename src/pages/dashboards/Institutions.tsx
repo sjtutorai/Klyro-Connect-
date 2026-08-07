@@ -849,17 +849,30 @@ export default function Institutions() {
                               setActiveDropdown(null);
                               try {
                                 if (inst.status === 'Pending') {
-                                  const generatedInstCode = `INST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+                                  const finalCode = inst.code || (inst as any).schoolCode || `INST-${Math.floor(10000 + Math.random() * 90000)}`;
                                   await updateDoc(doc(db, 'institutions', inst.id), {
                                     status: 'Active',
-                                    code: inst.code || generatedInstCode
+                                    code: finalCode,
+                                    schoolCode: finalCode
                                   });
                                   if (inst.adminUid) {
                                     await updateDoc(doc(db, 'users', inst.adminUid), {
-                                      status: 'Active'
+                                      status: 'Active',
+                                      schoolCode: finalCode,
+                                      institutionCode: finalCode
                                     });
+                                  } else if (inst.email) {
+                                    const userQ = query(collection(db, 'users'), where('email', '==', inst.email));
+                                    const userSnap = await getDocs(userQ);
+                                    for (const uDoc of userSnap.docs) {
+                                      await updateDoc(doc(db, 'users', uDoc.id), {
+                                        status: 'Active',
+                                        schoolCode: finalCode,
+                                        institutionCode: finalCode
+                                      });
+                                    }
                                   }
-                                  alert(`Institution Accepted! They can now log in. Code: ${inst.code || generatedInstCode}`);
+                                  alert(`✅ Institution Accepted! Permanent Institution Code: ${finalCode} (This code is locked and cannot be changed)`);
                                 } else {
                                   const newStatus = inst.status === 'Active' ? 'Suspended' : 'Active';
                                   await updateDoc(doc(db, 'institutions', inst.id), {
