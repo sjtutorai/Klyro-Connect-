@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader, Card, Button, Badge, ConfirmModal } from '../../components/ui';
 import { BookOpen, Plus, Search, Loader2, Edit, Trash2, Users, GraduationCap, Check, X, UserCheck, BookMarked, Layers, Sparkles } from 'lucide-react';
 import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
 type TeacherOption = {
@@ -82,7 +82,7 @@ export default function ClassesAndSections() {
       setClasses(list);
       setIsLoading(false);
     }, (err) => {
-      console.error("Error fetching classes:", err);
+      handleFirestoreError(err, OperationType.GET, 'classes');
       setIsLoading(false);
     });
 
@@ -264,7 +264,7 @@ export default function ClassesAndSections() {
       alert(`Class & Section "${fullTitle}" successfully saved!`);
       setShowModal(false);
     } catch (error: any) {
-      console.error("Error saving class and section:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'classes');
       alert(`Failed to save class & section: ${error?.message || "Please check inputs and try again."}`);
     } finally {
       setIsSubmitting(false);
