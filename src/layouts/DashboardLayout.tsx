@@ -15,7 +15,6 @@ const ROLE_NAVS = {
   SUPER_ADMIN: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/super-admin' },
     { name: 'Institutions', icon: Building2, path: '/dashboard/super-admin/institutions' },
-    { name: 'Study Groups', icon: MessagesSquare, path: '/dashboard/super-admin/study-groups', badge: 'New' },
     { name: 'Analytics', icon: FileBarChart, path: '/dashboard/super-admin/analytics' },
     { name: 'Settings', icon: Settings, path: '/dashboard/super-admin/settings' },
   ],

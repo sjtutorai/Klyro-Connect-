@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { seedDefaultInstitutions } from './lib/seedInstitutions';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -26,6 +27,8 @@ import Notices from './pages/dashboards/Notices';
 import StudyGroups from './pages/dashboards/StudyGroups';
 import ClassesAndSections from './pages/dashboards/ClassesAndSections';
 import InstitutionSettings from './pages/dashboards/InstitutionSettings';
+import SuperAdminSettings from './pages/dashboards/SuperAdminSettings';
+import Analytics from './pages/dashboards/Analytics';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -68,6 +71,10 @@ const DashboardRedirect = () => {
 };
 
 export default function App() {
+  useEffect(() => {
+    seedDefaultInstitutions();
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -88,7 +95,8 @@ export default function App() {
               <Route index element={<DashboardRedirect />} />
               <Route path="super-admin" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><SuperAdminDashboard /></ProtectedRoute>} />
               <Route path="super-admin/institutions" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><Institutions /></ProtectedRoute>} />
-              <Route path="super-admin/study-groups" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><StudyGroups /></ProtectedRoute>} />
+              <Route path="super-admin/analytics" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><Analytics /></ProtectedRoute>} />
+              <Route path="super-admin/settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><SuperAdminSettings /></ProtectedRoute>} />
               <Route path="super-admin/*" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><UnderConstruction title="Module Pending" /></ProtectedRoute>} />
               
               <Route path="institution" element={<ProtectedRoute allowedRoles={['INSTITUTION']}><InstitutionDashboard /></ProtectedRoute>} />

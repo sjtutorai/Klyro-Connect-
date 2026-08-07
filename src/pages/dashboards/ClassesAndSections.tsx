@@ -31,6 +31,7 @@ type ClassSection = {
   className: string;
   section: string;
   fullTitle: string;
+  code?: string;
   classTeacherId: string;
   classTeacherName: string;
   subjectTeachers: SubjectTeacherMapping[];
@@ -76,7 +77,9 @@ export default function ClassesAndSections() {
     const unsubscribeClasses = onSnapshot(qClasses, (snapshot) => {
       const list: ClassSection[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as ClassSection);
+        const data = docSnap.data();
+        const code = data.code || `CLS-${docSnap.id.substring(0, 5).toUpperCase()}`;
+        list.push({ id: docSnap.id, code, ...data } as ClassSection);
       });
       list.sort((a, b) => a.fullTitle?.localeCompare(b.fullTitle || '') || 0);
       setClasses(list);
@@ -219,10 +222,12 @@ export default function ClassesAndSections() {
       : doc(collection(db, 'classes'));
 
     try {
+      const generatedCode = editingClass?.code || `CLS-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
       const classData = {
         className: classNameInput.trim() || 'Class',
         section: sectionInput.trim() || 'A',
         fullTitle,
+        code: generatedCode,
         classTeacherId: selectedClassTeacherId || '',
         classTeacherName: classTeacherObj ? classTeacherObj.name : 'Unassigned',
         subjectTeachers: formattedSubjectTeachers || [],
@@ -380,9 +385,23 @@ export default function ClassesAndSections() {
                 <div>
                   <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">
-                        {cls.className}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">
+                          {cls.className}
+                        </span>
+                        {cls.code && (
+                          <span 
+                            title="Class Sign Up Code for Students"
+                            className="text-[10px] font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 cursor-pointer hover:bg-emerald-100 transition"
+                            onClick={() => {
+                              navigator.clipboard.writeText(cls.code || '');
+                              alert(`Copied Class Code: ${cls.code}`);
+                            }}
+                          >
+                            Code: {cls.code}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">
                         {cls.fullTitle}
                       </h3>

@@ -14,6 +14,7 @@ type Institution = {
   address: string;
   email: string;
   phone: string;
+  code?: string;
   password?: string;
   principalName?: string;
   affiliationCode?: string;
@@ -84,8 +85,10 @@ export default function Institutions() {
     const q = query(collection(db, 'institutions'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Institution[] = [];
-      snapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() } as Institution);
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const code = data.code || `INST-${docSnap.id.substring(0, 5).toUpperCase()}`;
+        list.push({ id: docSnap.id, code, ...data } as Institution);
       });
       list.sort((a, b) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -282,9 +285,11 @@ export default function Institutions() {
       const validTeachers = teachers.filter(t => t.name.trim() && t.email.trim());
       const validStudents = students.filter(s => s.name.trim() && s.email.trim());
 
+      const generatedInstCode = `INST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
       // Create Institution Firestore document
       const docRef = await addDoc(collection(db, 'institutions'), {
         ...formData,
+        code: generatedInstCode,
         status: 'Active',
         studentsCount: validStudents.length,
         teachersCount: validTeachers.length,
@@ -781,7 +786,19 @@ export default function Institutions() {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{inst.name}</p>
-                          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span 
+                              title="Click to copy institution code for student/teacher signup"
+                              onClick={() => {
+                                navigator.clipboard.writeText(inst.code || '');
+                                alert(`Copied Institution Code: ${inst.code}`);
+                              }}
+                              className="text-[10px] font-mono font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 cursor-pointer hover:bg-indigo-100 transition"
+                            >
+                              Code: {inst.code}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-1">
                             <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                             <span className="truncate max-w-xs">{inst.address}</span>
                           </div>

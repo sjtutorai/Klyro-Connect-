@@ -238,6 +238,36 @@ export default function InstitutionSettings() {
           <Badge variant="purple" dot>Official Registry</Badge>
         </div>
 
+        {/* Institution Join Code Banner */}
+        <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-950/60 rounded-2xl border border-indigo-200 dark:border-indigo-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Official Institution Sign-Up Code</span>
+            </div>
+            <p className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">
+              Share this code with your teachers and students. They will use it during Sign Up to join this campus network.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3.5 py-2 bg-white dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-xl font-mono font-black text-sm text-indigo-600 dark:text-indigo-400">
+              {schoolCode || (user?.institutionId ? `INST-${user.institutionId.substring(0, 5).toUpperCase()}` : 'INST-94821')}
+            </span>
+            <Button 
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const codeToCopy = schoolCode || (user?.institutionId ? `INST-${user.institutionId.substring(0, 5).toUpperCase()}` : 'INST-94821');
+                navigator.clipboard.writeText(codeToCopy);
+                alert(`Copied Institution Code: ${codeToCopy}`);
+              }}
+            >
+              Copy Code
+            </Button>
+          </div>
+        </div>
+
         <form onSubmit={handleSaveProfile} className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             
