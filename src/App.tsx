@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import PendingApproval from './pages/PendingApproval';
 import DashboardLayout from './layouts/DashboardLayout';
 import SuperAdminDashboard from './pages/dashboards/SuperAdminDashboard';
 import InstitutionDashboard from './pages/dashboards/InstitutionDashboard';
@@ -49,6 +50,10 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
     return <Navigate to="/login" replace />;
   }
 
+  if (user.status === 'Pending' || user.status === 'Rejected') {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
@@ -60,6 +65,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
 const DashboardRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.status === 'Pending' || user.status === 'Rejected') return <Navigate to="/pending-approval" replace />;
   
   switch (user.role) {
     case 'SUPER_ADMIN': return <Navigate to="/dashboard/super-admin" replace />;
@@ -78,6 +84,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/pending-approval" element={<PendingApproval />} />
             <Route path="/unauthorized" element={
               <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-4">
                 <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center text-2xl font-bold mb-4">!</div>
