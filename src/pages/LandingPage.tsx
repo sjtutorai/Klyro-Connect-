@@ -19,7 +19,8 @@ export default function LandingPage() {
     email: '',
     phone: '',
     website: '',
-    principalName: ''
+    principalName: '',
+    password: ''
   });
   
   const handleRegister = async (e: React.FormEvent) => {
@@ -35,7 +36,7 @@ export default function LandingPage() {
       });
       alert('School registered successfully! An administrator will review your request.');
       setShowRegisterModal(false);
-      setFormData({ name: '', address: '', email: '', phone: '', website: '', principalName: '' });
+      setFormData({ name: '', address: '', email: '', phone: '', website: '', principalName: '', password: '' });
     } catch (error) {
       console.error("Error registering school:", error);
       alert("Failed to register school.");
@@ -432,6 +433,18 @@ export default function LandingPage() {
                     onChange={(e) => setFormData({...formData, principalName: e.target.value})}
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 outline-none text-sm text-white placeholder-slate-500" 
                     placeholder="Principal's Name" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Account Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 outline-none text-sm text-white placeholder-slate-500" 
+                    placeholder="Create admin password" 
                   />
                 </div>
 
