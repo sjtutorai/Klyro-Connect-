@@ -3,7 +3,7 @@ import { PageHeader, ConfirmModal } from '../../components/ui';
 import { 
   MessagesSquare, Plus, Search, Loader2, Send, Image as ImageIcon, 
   Users, Shield, ShieldAlert, Lock, Unlock, Trash2, UserPlus, X, 
-  CheckCircle2, Info, Settings, MoreVertical, UserCheck, UserX, ChevronDown 
+  CheckCircle2, Info, Settings, MoreVertical, UserCheck, UserX, ChevronDown, Sparkles 
 } from 'lucide-react';
 import { 
   collection, query, where, orderBy, onSnapshot, addDoc, 
@@ -46,6 +46,18 @@ type UserProfile = {
   role: string;
   className?: string;
   institutionId?: string;
+};
+
+type ClassSectionOption = {
+  id: string;
+  className: string;
+  section: string;
+  fullTitle: string;
+  classTeacherId?: string;
+  classTeacherName?: string;
+  subjectTeachers?: { subject: string; teacherId: string; teacherName: string }[];
+  studentIds?: string[];
+  institutionId: string;
 };
 
 // Canvas image compression utility
@@ -95,6 +107,7 @@ export default function StudyGroups() {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [classList, setClassList] = useState<ClassSectionOption[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -112,7 +125,8 @@ export default function StudyGroups() {
     name: '',
     description: '',
     subject: 'General Study',
-    className: 'Class 10-A',
+    className: '',
+    selectedClassId: '',
     allowStudentChat: true
   });
 
@@ -226,6 +240,27 @@ export default function StudyGroups() {
     return () => unsubscribe();
   }, [user]);
 
+  // Fetch created classes and sections
+  useEffect(() => {
+    if (!user) return;
+    const targetInst = user.institutionId || (user.role === 'INSTITUTION' ? user.id : '');
+    if (!targetInst) return;
+
+    const qClasses = query(collection(db, 'classes'), where('institutionId', '==', targetInst));
+    const unsubscribe = onSnapshot(qClasses, (snapshot) => {
+      const cList: ClassSectionOption[] = [];
+      snapshot.forEach(docSnap => {
+        cList.push({ id: docSnap.id, ...docSnap.data() } as ClassSectionOption);
+      });
+      cList.sort((a, b) => a.fullTitle?.localeCompare(b.fullTitle || '') || 0);
+      setClassList(cList);
+    }, (err) => {
+      console.error("Error fetching classes for study groups:", err);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   // Fetch messages for active group
   useEffect(() => {
     if (!activeGroupId) {
@@ -278,15 +313,54 @@ export default function StudyGroups() {
     const instId = user.institutionId || (user.role === 'INSTITUTION' ? user.id : '');
     
     // Member list must include creator AND the institution compulsory
-    const initialMembers = Array.from(new Set([user.id, instId])).filter(Boolean);
-    const initialAdmins = Array.from(new Set([user.id, instId])).filter(Boolean);
+    const initialMembersSet = new Set<string>([user.id, instId]);
+    const initialAdminsSet = new Set<string>([user.id, instId]);
+
+    // If a created class is selected, automatically add all teachers & students assigned to that class
+    if (newGroupData.selectedClassId && newGroupData.selectedClassId !== 'custom') {
+      const targetClass = classList.find(c => c.id === newGroupData.selectedClassId);
+      if (targetClass) {
+        // Add class teacher
+        if (targetClass.classTeacherId) {
+          initialMembersSet.add(targetClass.classTeacherId);
+          initialAdminsSet.add(targetClass.classTeacherId);
+        }
+        // Add subject teachers
+        if (targetClass.subjectTeachers) {
+          targetClass.subjectTeachers.forEach(st => {
+            if (st.teacherId) {
+              initialMembersSet.add(st.teacherId);
+              initialAdminsSet.add(st.teacherId);
+            }
+          });
+        }
+        // Add assigned student IDs from class record
+        if (targetClass.studentIds && Array.isArray(targetClass.studentIds)) {
+          targetClass.studentIds.forEach(sId => initialMembersSet.add(sId));
+        }
+        // Add any users in allUsers matching this class name or title
+        allUsers.forEach(u => {
+          if (
+            u.className === targetClass.fullTitle || 
+            u.className === targetClass.className ||
+            u.className === `${targetClass.className} - ${targetClass.section}`
+          ) {
+            initialMembersSet.add(u.id);
+          }
+        });
+      }
+    }
+
+    const initialMembers = Array.from(initialMembersSet).filter(Boolean);
+    const initialAdmins = Array.from(initialAdminsSet).filter(Boolean);
 
     try {
       const docRef = await addDoc(collection(db, 'study_groups'), {
         name: newGroupData.name,
         description: newGroupData.description,
         subject: newGroupData.subject,
-        className: newGroupData.className,
+        className: newGroupData.className || 'General Class',
+        classId: newGroupData.selectedClassId || null,
         institutionId: instId,
         institutionName: user.role === 'INSTITUTION' ? user.name : 'Institution',
         createdBy: user.id,
@@ -312,11 +386,12 @@ export default function StudyGroups() {
         name: '',
         description: '',
         subject: 'General Study',
-        className: 'Class 10-A',
+        className: '',
+        selectedClassId: '',
         allowStudentChat: true
       });
       setActiveGroupId(docRef.id);
-      alert('Study Group created successfully!');
+      alert('Study Group created successfully and members auto-assigned!');
     } catch (err) {
       console.error("Error creating group:", err);
       alert('Failed to create study group.');
@@ -832,13 +907,67 @@ export default function StudyGroups() {
 
             <form onSubmit={handleCreateGroup} className="space-y-4">
               <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Select Created Class & Section <span className="text-indigo-600">*</span>
+                </label>
+                <select 
+                  value={newGroupData.selectedClassId}
+                  onChange={e => {
+                    const selectedId = e.target.value;
+                    const targetClass = classList.find(c => c.id === selectedId);
+                    if (targetClass) {
+                      const fullTitle = targetClass.fullTitle || `${targetClass.className} - Section ${targetClass.section}`;
+                      setNewGroupData(prev => ({
+                        ...prev,
+                        selectedClassId: selectedId,
+                        className: fullTitle,
+                        name: prev.name ? prev.name : `${fullTitle} Study Group`
+                      }));
+                    } else {
+                      setNewGroupData(prev => ({
+                        ...prev,
+                        selectedClassId: selectedId,
+                        className: selectedId === 'custom' ? prev.className : ''
+                      }));
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
+                >
+                  <option value="">-- Select Created Class & Section --</option>
+                  {classList.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullTitle || `${c.className} - Section ${c.section}`}
+                    </option>
+                  ))}
+                  <option value="custom">Other / Custom Class Batch</option>
+                </select>
+                {classList.length === 0 && (
+                  <p className="text-[11px] text-amber-600 mt-1">
+                    No created classes found. You can add classes in "Classes & Sections" menu or enter custom class.
+                  </p>
+                )}
+              </div>
+
+              {newGroupData.selectedClassId && newGroupData.selectedClassId !== 'custom' && (
+                <div className="p-3.5 bg-indigo-50/80 border border-indigo-200/90 rounded-xl text-xs text-indigo-900 flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-indigo-950">Auto-Enroll Class Members</p>
+                    <p className="text-[11px] text-indigo-700/90 mt-0.5 leading-snug">
+                      All assigned teachers & students in this Class & Section will be automatically enrolled into this Study Group so it appears on their dashboards!
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Group Title</label>
                 <input 
                   type="text" 
                   required 
                   value={newGroupData.name} 
                   onChange={e => setNewGroupData({...newGroupData, name: e.target.value})} 
-                  placeholder="e.g. Grade 10 Science & Mathematics" 
+                  placeholder="e.g. Grade 10 Science & Mathematics Group" 
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-indigo-600" 
                 />
               </div>
@@ -856,13 +985,13 @@ export default function StudyGroups() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Class / Batch</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Class Name / Title</label>
                   <input 
                     type="text" 
                     required 
                     value={newGroupData.className} 
                     onChange={e => setNewGroupData({...newGroupData, className: e.target.value})} 
-                    placeholder="e.g. Class 10-A" 
+                    placeholder="e.g. Class 10 - Section A" 
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-indigo-600" 
                   />
                 </div>
