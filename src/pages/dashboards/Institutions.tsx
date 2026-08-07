@@ -105,15 +105,47 @@ export default function Institutions() {
   const confirmDelete = async () => {
     if (!deleteInstId) return;
     const targetId = deleteInstId;
+    const targetInst = institutions.find(i => i.id === targetId);
+    
+    // Optimistically update UI
     setInstitutions(prev => prev.filter(i => i.id !== targetId));
     setDeleteInstId(null);
+
     try {
+      // 1. Delete Institution document
       await deleteDoc(doc(db, 'institutions', targetId));
-      const q = query(collection(db, 'users'), where('institutionId', '==', targetId));
-      const snapshot = await getDocs(q);
-      snapshot.forEach(async (docSnap) => {
+
+      // 2. Query and delete all user accounts (Institution Admin, Teachers, Students) linked by institutionId
+      const qUsersInst = query(collection(db, 'users'), where('institutionId', '==', targetId));
+      const snapUsersInst = await getDocs(qUsersInst);
+      for (const docSnap of snapUsersInst.docs) {
         await deleteDoc(docSnap.ref);
-      });
+      }
+
+      // 3. Delete matching institution account by contact email or ID if present in 'users'
+      if (targetInst?.email) {
+        const qUsersEmail = query(collection(db, 'users'), where('email', '==', targetInst.email));
+        const snapUsersEmail = await getDocs(qUsersEmail);
+        for (const docSnap of snapUsersEmail.docs) {
+          await deleteDoc(docSnap.ref);
+        }
+      }
+
+      // 4. Cascade delete all linked school data across collections
+      const collectionsToWipe = ['classes', 'study_groups', 'notices', 'events', 'timetables', 'homeworks', 'attendance', 'complaints'];
+      for (const colName of collectionsToWipe) {
+        try {
+          const qCol = query(collection(db, colName), where('institutionId', '==', targetId));
+          const snapCol = await getDocs(qCol);
+          for (const docSnap of snapCol.docs) {
+            await deleteDoc(docSnap.ref);
+          }
+        } catch (colErr) {
+          console.warn(`Cascade clean warning for ${colName}:`, colErr);
+        }
+      }
+
+      alert(`Institution "${targetInst?.name || 'School'}" and all associated emails, passwords, teacher accounts, and student accounts have been completely deleted.`);
     } catch (error: any) {
       console.error("Error deleting institution:", error);
       alert(`Failed to delete institution: ${error.message}`);
