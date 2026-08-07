@@ -36,12 +36,12 @@ export default function TeacherDashboard() {
           description="Today's lecture load"
         />
         <StatCard 
-          title="Class Attendance Rate" 
-          value={`${stats.averageAttendance}%`} 
+          title="Live Attendance Rate" 
+          value={`${stats.averageAttendance || stats.attendance}%`} 
           icon={<CalendarCheck className="w-5 h-5" />} 
-          trend={{ value: 'Realtime', positive: true }}
+          trend={{ value: 'Live Sync', positive: true }}
           gradient="from-emerald-500 to-teal-600"
-          description="Average present ratio"
+          description={`${stats.presentRecords || 0} Present • ${stats.absentRecords || 0} Absent`}
         />
         <StatCard 
           title="Submissions Pending" 
@@ -51,6 +51,40 @@ export default function TeacherDashboard() {
           description="Review & grade queue"
         />
       </div>
+
+      {/* Live Attendance Banner Card */}
+      <Card className="bg-slate-900 text-white border-slate-800 p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
+              <CalendarCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">Live Attendance Tracker</h3>
+                <Badge variant="emerald" dot>Realtime Institution Sync</Badge>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                When you mark Present or Absent, it automatically syncs across the Institution & Teacher Dashboards.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="text-right">
+              <span className="block text-xl font-extrabold text-emerald-400">{stats.averageAttendance || stats.attendance}%</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stats.presentRecords || 0} Present / {stats.absentRecords || 0} Absent</span>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={() => navigate('/dashboard/teacher/attendance')}
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              Mark Attendance
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid lg:grid-cols-3 gap-8">
         

@@ -47,16 +47,47 @@ export default function TeacherAttendance() {
 
   const handleMarkAttendance = async (studentId: string, status: string) => {
     try {
+      const student = students.find(s => s.id === studentId);
       const id = `${date}_${studentId}`;
       await setDoc(doc(db, 'attendance', id), {
         date,
         studentId,
-        institutionId: user?.institutionId,
-        status
+        studentName: student?.name || 'Student',
+        className: student?.assignedClass || student?.className || 'Class 10-A',
+        teacherId: user?.id || '',
+        teacherName: user?.name || 'Teacher',
+        institutionId: user?.institutionId || '',
+        status,
+        updatedAt: new Date().toISOString()
       });
     } catch (error) {
       console.error(error);
       alert('Failed to mark attendance.');
+    }
+  };
+
+  const handleMarkAll = async (status: 'Present' | 'Absent') => {
+    if (students.length === 0) return;
+    try {
+      await Promise.all(
+        students.map(student => {
+          const id = `${date}_${student.id}`;
+          return setDoc(doc(db, 'attendance', id), {
+            date,
+            studentId: student.id,
+            studentName: student.name || 'Student',
+            className: student.assignedClass || student.className || 'Class 10-A',
+            teacherId: user?.id || '',
+            teacherName: user?.name || 'Teacher',
+            institutionId: user?.institutionId || '',
+            status,
+            updatedAt: new Date().toISOString()
+          });
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      alert('Failed to mark bulk attendance.');
     }
   };
 
@@ -89,7 +120,15 @@ export default function TeacherAttendance() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 border-r border-slate-200 dark:border-slate-800 pr-3 mr-1">
+              <Button size="xs" variant="outline" onClick={() => handleMarkAll('Present')} icon={<Check className="w-3 h-3 text-emerald-500" />}>
+                Mark All Present
+              </Button>
+              <Button size="xs" variant="outline" onClick={() => handleMarkAll('Absent')} icon={<X className="w-3 h-3 text-rose-500" />}>
+                Mark All Absent
+              </Button>
+            </div>
             <Badge variant="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
               Present: {totalPresent}
             </Badge>

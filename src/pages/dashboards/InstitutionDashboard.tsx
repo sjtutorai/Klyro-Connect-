@@ -13,6 +13,7 @@ export default function InstitutionDashboard() {
   const navigate = useNavigate();
   const [recentNotices, setRecentNotices] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [recentAttendance, setRecentAttendance] = useState<any[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
@@ -50,9 +51,25 @@ export default function InstitutionDashboard() {
       setPendingRequests(list);
     });
 
+    // Listen to real-time attendance entries
+    const qAttendance = query(
+      collection(db, 'attendance'),
+      where('institutionId', '==', user.institutionId),
+      limit(5)
+    );
+
+    const unsubscribeAttendance = onSnapshot(qAttendance, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setRecentAttendance(list);
+    });
+
     return () => {
       unsubscribeNotices();
       unsubscribeRequests();
+      unsubscribeAttendance();
     };
   }, [user]);
 
@@ -320,40 +337,77 @@ export default function InstitutionDashboard() {
           </div>
         </Card>
 
-        {/* Attendance Ring Overview */}
+        {/* Attendance Ring Overview & Live Activity Stream */}
         <Card className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-emerald-500" /> Daily Staff Attendance
+                  <GraduationCap className="w-5 h-5 text-emerald-500" /> Daily Campus Attendance
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Real-time daily presence ratio</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Live attendance updates from teacher logins</p>
               </div>
-              <Badge variant="success" dot>Live Sync</Badge>
+              <Badge variant="emerald" dot>Live Realtime Sync</Badge>
             </div>
 
-            <div className="flex flex-col items-center justify-center py-6">
-              <div className="w-36 h-36 rounded-full border-8 border-emerald-500 dark:border-emerald-500 relative flex items-center justify-center shadow-lg shadow-emerald-500/10">
-                <div 
-                  className="absolute inset-[-8px] rounded-full border-8 border-rose-500" 
-                  style={{ clipPath: `polygon(50% 50%, 100% 0, 100% ${100 - stats.attendance}%, 50% 50%)` }}
-                />
-                <div className="text-center">
-                  <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{stats.attendance}%</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Present</div>
+            <div className="grid sm:grid-cols-2 gap-6 items-center py-2">
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-32 h-32 rounded-full border-8 border-emerald-500 dark:border-emerald-500 relative flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                  <div 
+                    className="absolute inset-[-8px] rounded-full border-8 border-rose-500" 
+                    style={{ clipPath: `polygon(50% 50%, 100% 0, 100% ${100 - (stats.attendance || 100)}%, 50% 50%)` }}
+                  />
+                  <div className="text-center">
+                    <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{stats.attendance || 100}%</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Present</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">Present Records:</span>
+                  <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">{stats.presentRecords || 0}</span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/80 flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-900 dark:text-rose-300">Absent Records:</span>
+                  <span className="text-sm font-extrabold text-rose-700 dark:text-rose-400">{stats.absentRecords || 0}</span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Total Logged:</span>
+                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">{stats.totalAttendanceRecords || 0}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-center gap-8 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Present Staff</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-rose-500" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Absent / Leave</span>
+            {/* Live Attendance Activity Stream */}
+            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
+                <span>Recent Live Updates from Teachers:</span>
+                <span className="text-indigo-500 text-[10px]">{recentAttendance.length} records</span>
+              </p>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {recentAttendance.length > 0 ? (
+                  recentAttendance.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-900 dark:text-white">{item.studentName || item.studentId}</p>
+                        <p className="text-[10px] text-slate-400">Date: {item.date} {item.teacherName ? `• By ${item.teacherName}` : ''}</p>
+                      </div>
+                      <Badge variant={item.status === 'Present' ? 'emerald' : 'rose'}>
+                        {item.status}
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 italic text-center py-3">No attendance marked yet today.</p>
+                )}
               </div>
             </div>
           </div>

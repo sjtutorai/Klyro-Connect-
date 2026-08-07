@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,11 +9,17 @@ export function useFirestoreStats() {
     institutions: 0,
     teachers: 0,
     students: 0,
+    courses: 6,
     activeComplaints: 0,
     pendingComplaints: 0,
     activeEvents: 0,
     notices: 0,
-    attendance: 92, // Mocked for now since attendance collection doesn't exist
+    attendance: 100,
+    averageAttendance: 100,
+    presentRecords: 0,
+    absentRecords: 0,
+    totalAttendanceRecords: 0,
+    pendingHomework: 0,
     unreadNotices: 0
   });
 
@@ -27,7 +33,6 @@ export function useFirestoreStats() {
       let institutions = 0;
       snapshot.forEach(doc => {
         const data = doc.data();
-        // If institution logic, we might want to only count for the institution
         if (user.role === 'INSTITUTION' && data.institutionId !== user.institutionId) {
           return;
         }
@@ -71,13 +76,62 @@ export function useFirestoreStats() {
       setStats(prev => ({ ...prev, notices: noticesCount, unreadNotices: noticesCount }));
     });
 
+    // Listen to homeworks
+    const unsubscribeHomeworks = onSnapshot(collection(db, 'homeworks'), (snapshot) => {
+      let pendingHw = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (user.role === 'INSTITUTION' && data.institutionId !== user.institutionId) return;
+        pendingHw++;
+      });
+      setStats(prev => ({ ...prev, pendingHomework: pendingHw }));
+    });
+
+    // Real-time listener for attendance collection
+    const unsubscribeAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
+      let presentRecords = 0;
+      let absentRecords = 0;
+      let totalAttendanceRecords = 0;
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        // Filter by institution if user has an institutionId
+        if (user.institutionId && data.institutionId && data.institutionId !== user.institutionId) {
+          return;
+        }
+        if (user.role === 'STUDENT' && data.studentId !== user.id) {
+          return;
+        }
+
+        totalAttendanceRecords++;
+        if (data.status === 'Present') presentRecords++;
+        if (data.status === 'Absent') absentRecords++;
+      });
+
+      const attendancePercentage = totalAttendanceRecords > 0 
+        ? Math.round((presentRecords / totalAttendanceRecords) * 100) 
+        : 100;
+
+      setStats(prev => ({ 
+        ...prev, 
+        attendance: attendancePercentage,
+        averageAttendance: attendancePercentage,
+        presentRecords,
+        absentRecords,
+        totalAttendanceRecords
+      }));
+    });
+
     return () => {
       unsubscribeUsers();
       unsubscribeComplaints();
       unsubscribeEvents();
       unsubscribeNotices();
+      unsubscribeHomeworks();
+      unsubscribeAttendance();
     };
   }, [user]);
 
   return stats;
 }
+

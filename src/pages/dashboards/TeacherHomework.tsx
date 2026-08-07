@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
-import { BookOpen, Plus, Search, Loader2, Image as ImageIcon, CheckCircle2, Eye, X, Trash2, Calendar, User, FileText, Award, Send } from 'lucide-react';
+import { BookOpen, Plus, Search, Loader2, Image as ImageIcon, CheckCircle2, Eye, X, Trash2, Calendar, User, FileText, Award, Send, Sparkles, Upload, Camera, AlertCircle } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { compressImageFile } from '../../lib/imageUtils';
+import { evaluateHomeworkWithAI } from '../../lib/aiHomework';
 
 type Homework = {
   id: string;
@@ -12,7 +14,10 @@ type Homework = {
   dueDate: string;
   createdAt: any;
   teacherId: string;
+  teacherName?: string;
   institutionId: string;
+  attachmentUrl?: string;
+  aiCorrectionEnabled?: boolean;
 };
 
 type Submission = {
@@ -22,7 +27,7 @@ type Submission = {
   studentId: string;
   studentName: string;
   photoUrl?: string;
-  status: string; // 'Submitted', 'Graded'
+  status: 'Completed' | 'In Progress' | 'Not Done' | 'Submitted' | 'Graded' | string;
   grade?: string;
   feedback?: string;
   createdAt?: any;
@@ -38,8 +43,20 @@ export default function TeacherHomework() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   
-  const [formData, setFormData] = useState({ title: '', description: '', dueDate: '' });
+  const [formData, setFormData] = useState({ 
+    title: '', 
+    description: '', 
+    dueDate: '',
+    attachmentUrl: '',
+    aiCorrectionEnabled: true
+  });
+  const [hwPhotoFile, setHwPhotoFile] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [activeHomework, setActiveHomework] = useState<string | null>(null);
+  const [evaluatingSubId, setEvaluatingSubId] = useState<string | null>(null);
 
   // Load homeworks for this teacher/institution
   useEffect(() => {
@@ -134,22 +151,84 @@ export default function TeacherHomework() {
     return () => unsubscribe();
   }, [user, homeworks]);
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedBase64 = await compressImageFile(file);
+        setHwPhotoFile(compressedBase64);
+      } catch (err) {
+        console.error("Error compressing image:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setHwPhotoFile(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Could not access camera. Please check camera permissions.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setHwPhotoFile(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setIsSubmitting(true);
     try {
+      const finalAttachment = hwPhotoFile || formData.attachmentUrl || '';
       const docRef = await addDoc(collection(db, 'homeworks'), {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        dueDate: formData.dueDate,
+        attachmentUrl: finalAttachment,
+        aiCorrectionEnabled: formData.aiCorrectionEnabled,
         teacherId: user.id,
         teacherName: user.name,
         institutionId: user.institutionId || '',
         createdAt: serverTimestamp()
       });
       setShowForm(false);
-      setFormData({ title: '', description: '', dueDate: '' });
+      setFormData({ title: '', description: '', dueDate: '', attachmentUrl: '', aiCorrectionEnabled: true });
+      setHwPhotoFile(null);
       setActiveHomework(docRef.id);
-      alert('Homework assignment created and sent to students!');
+      alert('Homework assignment created and shared with students!');
     } catch (error) {
       console.error(error);
       alert('Failed to add homework.');
@@ -177,18 +256,51 @@ export default function TeacherHomework() {
     }
   };
 
-  const handleGrade = async (subId: string, grade: string, feedback: string) => {
+  const handleGrade = async (subId: string, status: string, grade: string, feedback: string) => {
     try {
       await updateDoc(doc(db, 'submissions', subId), {
-        status: 'Graded',
+        status,
         grade,
         feedback,
         gradedAt: serverTimestamp()
       });
-      alert('Submission graded successfully!');
+      alert(`Submission marked as "${status}" and graded successfully!`);
     } catch (error) {
       console.error(error);
       alert('Failed to grade submission.');
+    }
+  };
+
+  const handleAiAutoCorrect = async (sub: Submission) => {
+    if (!activeHwObject || !sub.photoUrl) {
+      alert("No student submission photo found to analyze.");
+      return;
+    }
+
+    setEvaluatingSubId(sub.id);
+    try {
+      const aiResult = await evaluateHomeworkWithAI({
+        questionTitle: activeHwObject.title,
+        questionDescription: activeHwObject.description,
+        questionPhotoUrl: activeHwObject.attachmentUrl,
+        studentName: sub.studentName,
+        studentPhotoUrl: sub.photoUrl
+      });
+
+      await updateDoc(doc(db, 'submissions', sub.id), {
+        status: aiResult.status,
+        grade: aiResult.grade,
+        feedback: aiResult.feedback,
+        gradedAt: serverTimestamp(),
+        aiEvaluated: true
+      });
+
+      alert(`🤖 AI Auto-Correction Complete!\n\nStatus: ${aiResult.status}\nGrade: ${aiResult.grade}\nFeedback: ${aiResult.feedback}`);
+    } catch (err: any) {
+      console.error("AI Auto-correction error:", err);
+      alert(`AI Auto-correction failed: ${err?.message || "Please check submission photo."}`);
+    } finally {
+      setEvaluatingSubId(null);
     }
   };
 
@@ -205,11 +317,19 @@ export default function TeacherHomework() {
     return false;
   });
 
+  const getStatusBadgeVariant = (status: string) => {
+    if (status === 'Completed') return 'emerald';
+    if (status === 'In Progress') return 'amber';
+    if (status === 'Not Done') return 'rose';
+    if (status === 'Graded') return 'emerald';
+    return 'indigo';
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader 
         title="Faculty Homework Hub" 
-        description="Assign homework assignments, review photo submissions uploaded by students, and evaluate grades."
+        description="Assign homework with photo attachments, enable Gemini AI auto-correction, and evaluate student live work."
         badge="Academic Management"
         breadcrumbs={[{ label: 'Faculty' }, { label: 'Homework Assignments' }]}
         action={
@@ -229,7 +349,7 @@ export default function TeacherHomework() {
             <button onClick={() => setZoomedImage(null)} className="absolute top-4 right-4 p-2 bg-slate-950/70 hover:bg-slate-950 text-white rounded-full transition z-10">
               <X className="w-5 h-5" />
             </button>
-            <img src={zoomedImage} alt="Homework Submission Full View" className="w-full h-full max-h-[85vh] object-contain rounded-2xl" />
+            <img src={zoomedImage} alt="Homework Attachment View" className="w-full h-full max-h-[85vh] object-contain rounded-2xl" />
           </div>
         </div>
       )}
@@ -242,7 +362,7 @@ export default function TeacherHomework() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">New Homework Assignment</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Specify instructions, due date, and questions for students</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Attach question paper photo, set instructions, and enable AI auto-correction</p>
             </div>
           </div>
 
@@ -250,23 +370,116 @@ export default function TeacherHomework() {
             <div className="grid md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assignment Title</label>
-                <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" placeholder="e.g. Mathematics Chapter 4 Written Homework" />
+                <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" placeholder="e.g. Mathematics Chapter 4 Homework" />
               </div>
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Instructions & Questions</label>
-                <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition resize-none" placeholder="Provide instructions for students to write down answers on paper and upload a clear photo..."></textarea>
+                <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition resize-none" placeholder="Provide instructions or write down questions for students to solve on paper..."></textarea>
               </div>
+
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Submission Due Date</label>
                 <input required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} type="date" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" />
               </div>
+
+              {/* AI Toggle */}
+              <div className="flex items-center gap-3 p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/80">
+                <input 
+                  type="checkbox"
+                  id="aiCorrectionEnabled"
+                  checked={formData.aiCorrectionEnabled}
+                  onChange={e => setFormData({...formData, aiCorrectionEnabled: e.target.checked})}
+                  className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="aiCorrectionEnabled" className="cursor-pointer">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Enable Gemini AI Auto-Correction
+                  </span>
+                  <span className="text-[11px] text-indigo-700 dark:text-indigo-300 block">
+                    AI will analyze student live answer photos against this assignment and mark status as Completed, In Progress, or Not Done.
+                  </span>
+                </label>
+              </div>
+
+              {/* Teacher Homework Photo Attachment */}
+              <div className="md:col-span-2 space-y-3 pt-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Attach Homework / Question Paper Photo <span className="text-slate-400 font-normal lowercase text-[11px]">(optional)</span>
+                </label>
+                
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                    <Upload className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mb-2" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Upload Question Photo</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">PNG, JPG format</span>
+                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                  </label>
+
+                  <button type="button" onClick={startCamera} className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition text-left">
+                    <Camera className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mb-2" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Snap Question Photo</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">Use camera to capture paper</span>
+                  </button>
+                </div>
+
+                {showCamera && (
+                  <div className="p-4 bg-slate-900 rounded-2xl flex flex-col items-center relative">
+                    <video ref={videoRef} className="w-full max-w-md rounded-xl bg-black aspect-video object-cover" playsInline muted></video>
+                    <canvas ref={canvasRef} className="hidden"></canvas>
+                    <div className="flex items-center gap-3 mt-4">
+                      <button type="button" onClick={capturePhoto} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition">
+                        Capture Question Photo
+                      </button>
+                      <button type="button" onClick={stopCamera} className="px-6 py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col justify-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Or enter Image URL</span>
+                  <input 
+                    type="url" 
+                    value={formData.attachmentUrl}
+                    onChange={(e) => {
+                      setFormData({...formData, attachmentUrl: e.target.value});
+                      setHwPhotoFile(null);
+                    }}
+                    placeholder="https://..." 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                {(hwPhotoFile || formData.attachmentUrl) && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Attached Homework Photo Preview:</p>
+                      <img 
+                        src={hwPhotoFile || formData.attachmentUrl} 
+                        alt="Question Photo Preview" 
+                        className="max-h-36 rounded-xl object-contain bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+                      />
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => { setHwPhotoFile(null); setFormData({...formData, attachmentUrl: ''}); }}
+                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                    >
+                      <Trash2 className="w-4 h-4" /> Remove
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
                 Cancel
               </Button>
               <Button type="submit" isLoading={isSubmitting}>
-                Create Assignment
+                Create & Share Assignment
               </Button>
             </div>
           </form>
@@ -303,19 +516,34 @@ export default function TeacherHomework() {
                 }`}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors pr-6 text-sm">{hw.title}</h4>
+                  <div className="pr-4">
+                    <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-sm flex items-center gap-1.5">
+                      {hw.title}
+                      {hw.aiCorrectionEnabled && (
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="AI Auto-Correction Enabled" />
+                      )}
+                    </h4>
+                  </div>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteHwId(hw.id);
                     }}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition shrink-0"
                     title="Delete Assignment"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">{hw.description}</p>
+
+                {hw.attachmentUrl && (
+                  <div className="mb-3 flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-1 rounded-lg w-fit">
+                    <ImageIcon className="w-3 h-3" /> Question Photo Attached
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Due: {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : 'N/A'}
@@ -333,20 +561,50 @@ export default function TeacherHomework() {
         <div className="lg:col-span-2">
           {activeHwObject ? (
             <Card className="space-y-6">
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-5">
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{activeHwObject.title}</h2>
+              <div className="border-b border-slate-100 dark:border-slate-800 pb-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {activeHwObject.title}
+                    {activeHwObject.aiCorrectionEnabled && (
+                      <Badge variant="indigo" className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> AI Auto-Correct Active
+                      </Badge>
+                    )}
+                  </h2>
                   <Badge variant="indigo">
                     Due Date: {activeHwObject.dueDate ? new Date(activeHwObject.dueDate).toLocaleDateString() : 'N/A'}
                   </Badge>
                 </div>
+
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{activeHwObject.description}</p>
+
+                {/* Display Teacher Homework Photo Attachment */}
+                {activeHwObject.attachmentUrl && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-500" /> Teacher's Question / Content Photo (Shared with Students):
+                    </p>
+                    <div 
+                      onClick={() => setZoomedImage(activeHwObject.attachmentUrl || null)}
+                      className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-2 cursor-pointer max-w-sm hover:border-indigo-500 transition"
+                    >
+                      <img 
+                        src={activeHwObject.attachmentUrl} 
+                        alt="Question Paper Attachment" 
+                        className="w-full max-h-48 object-contain rounded-lg"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-white font-bold text-xs">
+                        <Eye className="w-4 h-4" /> Click to Zoom
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
-                    Student Submissions ({submissions.length})
+                    Student Live Submissions ({submissions.length})
                   </h3>
                 </div>
 
@@ -354,7 +612,7 @@ export default function TeacherHomework() {
                   <div className="p-12 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                     <ImageIcon className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
                     <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">No submissions received yet.</p>
-                    <p className="text-xs text-slate-400 mt-1">Photos submitted by students will appear right here for grading.</p>
+                    <p className="text-xs text-slate-400 mt-1">Live camera photos submitted by students will appear right here for grading.</p>
                   </div>
                 ) : (
                   <div className="space-y-5">
@@ -367,26 +625,39 @@ export default function TeacherHomework() {
                             </div>
                             <div>
                               <h4 className="font-bold text-slate-900 dark:text-white text-sm">{sub.studentName}</h4>
-                              <p className="text-[11px] text-slate-400">Student Submission</p>
+                              <p className="text-[11px] text-slate-400">Student Live Camera Submission</p>
                             </div>
                           </div>
 
-                          <Badge variant={sub.status === 'Graded' ? 'emerald' : 'amber'}>
-                            {sub.status === 'Graded' ? 'Graded' : 'Pending Review'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getStatusBadgeVariant(sub.status)}>
+                              Status: {sub.status || 'Pending Review'}
+                            </Badge>
+
+                            {/* Run AI Correction Button */}
+                            <Button 
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleAiAutoCorrect(sub)}
+                              isLoading={evaluatingSubId === sub.id}
+                              icon={<Sparkles className="w-3.5 h-3.5 text-indigo-500" />}
+                            >
+                              AI Auto-Correct
+                            </Button>
+                          </div>
                         </div>
                         
-                        {/* Submitted Photo */}
+                        {/* Student Submitted Live Photo */}
                         {sub.photoUrl ? (
                           <div className="space-y-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Photo Attachment:</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Student Live Camera Photo:</p>
                             <div 
                               onClick={() => setZoomedImage(sub.photoUrl || null)}
                               className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 cursor-pointer max-w-md hover:border-indigo-500 transition"
                             >
                               <img 
                                 src={sub.photoUrl} 
-                                alt="Student Homework" 
+                                alt="Student Live Homework Photo" 
                                 className="w-full max-h-64 object-contain rounded-xl"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=500&auto=format&fit=crop&q=60';
@@ -398,40 +669,55 @@ export default function TeacherHomework() {
                             </div>
                           </div>
                         ) : (
-                          <div className="text-xs text-slate-400 italic">No photo attached.</div>
+                          <div className="text-xs text-slate-400 italic">No live photo attached.</div>
                         )}
 
-                        {/* Grading Form */}
-                        {sub.status === 'Submitted' ? (
-                          <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const target = e.target as typeof e.target & { grade: { value: string }, feedback: { value: string } };
-                            handleGrade(sub.id, target.grade.value, target.feedback.value);
-                          }} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Evaluate Submission</h5>
-                            <div className="grid sm:grid-cols-2 gap-3">
-                              <div>
-                                <input name="grade" placeholder="Grade (e.g. A+, 92/100)" required className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none text-xs focus:border-indigo-500" />
+                        {/* Evaluation & Grading Section */}
+                        {sub.grade || sub.feedback ? (
+                          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
+                                <Award className="w-4 h-4 text-indigo-500" />
+                                <span>Grade: {sub.grade || 'Evaluated'}</span>
                               </div>
-                              <div className="sm:col-span-2">
-                                <textarea name="feedback" placeholder="Constructive feedback for student..." rows={2} required className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none text-xs resize-none focus:border-indigo-500"></textarea>
-                              </div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {sub.status}
+                              </span>
                             </div>
-                            <div className="flex justify-end">
-                              <Button type="submit" size="sm" icon={<Send className="w-3.5 h-3.5" />}>
-                                Submit Grade & Feedback
-                              </Button>
-                            </div>
-                          </form>
-                        ) : (
-                          <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60 p-4 rounded-xl text-xs space-y-1">
-                            <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-300 font-bold">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                              <span>Grade Assigned: {sub.grade}</span>
-                            </div>
-                            <p className="text-emerald-800 dark:text-emerald-300 text-xs"><strong>Teacher Feedback:</strong> {sub.feedback}</p>
+                            <p className="text-slate-600 dark:text-slate-300 text-xs">
+                              <strong>Feedback:</strong> {sub.feedback}
+                            </p>
                           </div>
-                        )}
+                        ) : null}
+
+                        {/* Manual Grade Form */}
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const target = e.target as typeof e.target & { status: { value: string }, grade: { value: string }, feedback: { value: string } };
+                          handleGrade(sub.id, target.status.value, target.grade.value, target.feedback.value);
+                        }} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                          <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Manual Grade / Update Status</h5>
+                          <div className="grid sm:grid-cols-3 gap-3">
+                            <div>
+                              <select name="status" defaultValue={sub.status || 'Completed'} className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none text-xs focus:border-indigo-500">
+                                <option value="Completed">Completed</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Not Done">Not Done</option>
+                              </select>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <input name="grade" defaultValue={sub.grade || ''} placeholder="Grade (e.g. 95/100, A)" required className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none text-xs focus:border-indigo-500" />
+                            </div>
+                            <div className="sm:col-span-3">
+                              <textarea name="feedback" defaultValue={sub.feedback || ''} placeholder="Feedback for student..." rows={2} required className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none text-xs resize-none focus:border-indigo-500"></textarea>
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button type="submit" size="sm" icon={<Send className="w-3.5 h-3.5" />}>
+                              Save Manual Evaluation
+                            </Button>
+                          </div>
+                        </form>
                       </div>
                     ))}
                   </div>
@@ -442,7 +728,7 @@ export default function TeacherHomework() {
             <Card className="p-12 text-center text-slate-400 flex flex-col items-center justify-center min-h-[400px]">
               <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-3" />
               <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Select an assignment to view submissions</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm">Select a homework assignment from the roster on the left to grade submitted photos.</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm">Select a homework assignment from the roster on the left to grade submitted live photos.</p>
             </Card>
           )}
         </div>
@@ -458,3 +744,4 @@ export default function TeacherHomework() {
     </div>
   );
 }
+
