@@ -159,11 +159,20 @@ export default function StudyGroups() {
         
         // Filter by institution or user membership
         const userInstitution = user.institutionId || (user.role === 'INSTITUTION' ? user.id : '');
-        const isMember = item.members?.includes(user.id);
-        const isInstMatch = userInstitution && item.institutionId === userInstitution;
+        const isMember = item.members?.includes(user.id) || item.admins?.includes(user.id) || item.createdBy === user.id;
         
-        if (user.role === 'SUPER_ADMIN' || isMember || isInstMatch) {
+        if (user.role === 'SUPER_ADMIN') {
           list.push(item);
+        } else if (user.role === 'INSTITUTION') {
+          // Main Institution sees all study groups created under their campus
+          if (item.institutionId === userInstitution || item.createdBy === user.id) {
+            list.push(item);
+          }
+        } else {
+          // TEACHERS and STUDENTS: Only display the group if explicitly added as a member by the Institution
+          if (isMember) {
+            list.push(item);
+          }
         }
       });
 
@@ -566,7 +575,9 @@ export default function StudyGroups() {
                 <MessagesSquare className="w-10 h-10 text-slate-300 mx-auto" />
                 <p className="font-semibold text-slate-700 text-sm">No Study Groups found</p>
                 <p className="text-xs text-slate-400">
-                  {user?.role === 'STUDENT' ? 'You will see study groups when added by your institution/teacher.' : 'Click "Create Study Group" to start a new discussion room.'}
+                  {user?.role === 'TEACHER' || user?.role === 'STUDENT'
+                    ? 'You will see study groups here once your Institution adds you as a group member.' 
+                    : 'Click "Create Study Group" to start a new discussion room.'}
                 </p>
               </div>
             ) : (
