@@ -320,11 +320,13 @@ export default function Timetable() {
     return currentClassSlots.find(s => s.day === day && s.time === time);
   };
 
-  // Unique list of options for class dropdown
-  const classOptions = Array.from(new Set([
-    ...savedClasses.map(c => c.fullTitle),
-    'Class 10-A', 'Class 10-B', 'Class 9-A', 'Class 9-B', 'Grade 11 Science', 'Grade 12 Math'
-  ]));
+  // Unique list of options for class dropdown using exact details from classes collection
+  const classOptions = savedClasses.length > 0 
+    ? savedClasses.map(c => c.fullTitle)
+    : ['Class 10-A', 'Class 10-B', 'Class 9-A', 'Class 9-B', 'Grade 11 Science', 'Grade 12 Math'];
+
+  // Current selected class object from Firestore
+  const selectedSavedClass = savedClasses.find(c => c.fullTitle.toLowerCase() === selectedClass.toLowerCase());
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -367,27 +369,64 @@ export default function Timetable() {
         }
       />
 
-      {/* Class Selector Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Select Class & Section:</span>
-          <select 
-            value={selectedClass} 
-            onChange={e => setSelectedClass(e.target.value)}
-            className="px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-600"
-          >
-            {classOptions.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+      {/* Class Selector Bar & Firestore Class Details */}
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm mb-6 space-y-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Select Class & Section:</span>
+            <select 
+              value={selectedClass} 
+              onChange={e => setSelectedClass(e.target.value)}
+              className="px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              {classOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {isPrincipal && (
+            <div className="text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-3 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-900 font-medium flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4" /> Principal Mode: Use AI Generator above or click any grid cell below
+            </div>
+          )}
         </div>
 
-        {isPrincipal && (
-          <div className="text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-3 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-900 font-medium flex items-center gap-1.5">
-            <UserCheck className="w-4 h-4" /> Principal Mode: Use AI Generator above or click any grid cell below
+        {/* Firestore Class & Section Details Header Card */}
+        {selectedSavedClass ? (
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/60 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold rounded-lg">
+                Class: {selectedSavedClass.className || 'N/A'}
+              </span>
+              <span className="px-2.5 py-1 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold rounded-lg">
+                Section: {selectedSavedClass.section || 'N/A'}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400 font-medium ml-1">
+                (Loaded from Firestore 'classes' collection)
+              </span>
+            </div>
+
+            {selectedSavedClass.subjectTeachers && selectedSavedClass.subjectTeachers.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Subject Teachers:</span>
+                {selectedSavedClass.subjectTeachers.map((st, i) => {
+                  const teacher = teachersList.find(t => t.id === st.teacherId);
+                  return (
+                    <span key={i} className="bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                      <strong>{st.subject}:</strong> {teacher?.name || 'Assigned Teacher'}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        ) : savedClasses.length === 0 ? (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+            <span>No custom classes found in Firestore. Go to <strong>Classes & Sections</strong> dashboard to define exact classes and subject teachers.</span>
+          </div>
+        ) : null}
       </div>
 
       {/* AI Timetable Generator Modal */}

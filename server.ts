@@ -309,6 +309,105 @@ Return ONLY valid JSON matching this exact structure:
   }
 });
 
+// AI Student & Teacher Roster Parser Endpoint (Auto Converts PDF/Excel/CSV to Manual Form Data)
+app.post('/api/ai/parse-roster', requireAuth, async (req, res) => {
+  const { fileContent, fileName, mimeType } = req.body;
+
+  if (!fileContent) {
+    return res.status(400).json({ error: 'fileContent is required' });
+  }
+
+  try {
+    const ai = getGenAI();
+
+    if (ai) {
+      const prompt = `You are an AI document parser for school onboarding.
+Analyze the following document/file content uploaded for registering students and teachers for a school.
+Extract all student and teacher records mentioned in the text or structured table.
+
+File Name: ${fileName || 'Uploaded File'}
+Mime Type: ${mimeType || 'text/plain'}
+
+Instructions:
+1. Extract every student with fields: name, email, password, className (e.g. "Class 10 - Section A").
+2. Extract every teacher with fields: name, email, password, subject.
+3. If email is missing for a person, generate a clean email based on their name and domain like "first.last@school.edu".
+4. If password is missing, generate a standard initial password like "Student123!" or "Teacher123!".
+5. Return ONLY a valid JSON object matching this exact structure:
+{
+  "teachers": [
+    { "name": "John Smith", "email": "john.smith@school.edu", "password": "Teacher123!", "subject": "Mathematics" }
+  ],
+  "students": [
+    { "name": "Alice Johnson", "email": "alice.j@school.edu", "password": "Student123!", "className": "Class 10 - Section A" }
+  ]
+}
+
+Document Content:
+${typeof fileContent === 'string' ? fileContent.slice(0, 15000) : JSON.stringify(fileContent)}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        }
+      });
+
+      const text = response.text || '{}';
+      try {
+        const parsed = JSON.parse(text);
+        return res.json(parsed);
+      } catch (parseErr) {
+        console.error("JSON parse error from Gemini parse-roster response:", parseErr, text);
+      }
+    }
+
+    // Heuristic Fallback Parser if Gemini key is missing or parse fails
+    const rawLines = typeof fileContent === 'string' ? fileContent.split(/\r?\n/) : [];
+    const extractedStudents: any[] = [];
+    const extractedTeachers: any[] = [];
+
+    rawLines.forEach((line: string, idx: number) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.toLowerCase().includes('name,') || trimmed.toLowerCase().includes('email,')) return;
+
+      const parts = trimmed.split(/[,;\t|]+/);
+      if (parts.length >= 1 && parts[0].length > 2) {
+        const name = parts[0].replace(/["']/g, '').trim();
+        const email = parts[1] ? parts[1].replace(/["']/g, '').trim() : `${name.toLowerCase().replace(/\s+/g, '.')}@school.edu`;
+        const password = parts[2] ? parts[2].replace(/["']/g, '').trim() : 'Student123!';
+        const className = parts[3] ? parts[3].replace(/["']/g, '').trim() : 'Class 10 - Section A';
+
+        if (trimmed.toLowerCase().includes('teacher') || parts.some(p => /math|science|physics|english|chemistry|teacher/i.test(p))) {
+          extractedTeachers.push({
+            name,
+            email,
+            password: password === 'Student123!' ? 'Teacher123!' : password,
+            subject: parts[3] || 'General Subject'
+          });
+        } else {
+          extractedStudents.push({
+            name,
+            email,
+            password,
+            className
+          });
+        }
+      }
+    });
+
+    return res.json({
+      teachers: extractedTeachers,
+      students: extractedStudents
+    });
+
+  } catch (err: any) {
+    console.error("AI Parse Roster Error:", err);
+    res.status(500).json({ error: err.message || 'Failed to parse roster file' });
+  }
+});
+
 // Vite Middleware for Development
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

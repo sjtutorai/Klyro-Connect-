@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
-import { Building2, Plus, Search, MapPin, Mail, Phone, MoreVertical, Loader2, Trash2, Edit, Lock, ShieldCheck } from 'lucide-react';
-import { collection, query, onSnapshot, deleteDoc, doc, where, getDocs, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { 
+  Building2, Plus, Search, MapPin, Mail, Phone, MoreVertical, Loader2, Trash2, Edit, Lock, 
+  Upload, FileText, UserCheck, Users, GraduationCap, CheckCircle2, Sparkles, FileSpreadsheet, AlertCircle, X
+} from 'lucide-react';
+import { collection, query, onSnapshot, deleteDoc, doc, where, getDocs, addDoc, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -12,10 +15,27 @@ type Institution = {
   email: string;
   phone: string;
   password?: string;
+  principalName?: string;
+  affiliationCode?: string;
+  website?: string;
   status: string;
   studentsCount: number;
   teachersCount: number;
   createdAt: any;
+};
+
+type TeacherInput = {
+  name: string;
+  email: string;
+  password: string;
+  subject: string;
+};
+
+type StudentInput = {
+  name: string;
+  email: string;
+  password: string;
+  className: string;
 };
 
 export default function Institutions() {
@@ -27,37 +47,38 @@ export default function Institutions() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [deleteInstId, setDeleteInstId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Detailed School Information
   const [formData, setFormData] = useState({
     name: '',
     address: '',
     email: '',
     phone: '',
-    password: ''
+    password: '',
+    principalName: '',
+    affiliationCode: '',
+    website: ''
   });
+
+  // Dynamic Faculty & Roster States
+  const [teachers, setTeachers] = useState<TeacherInput[]>([
+    { name: '', email: '', password: 'Teacher123!', subject: 'Mathematics' }
+  ]);
+
+  const [students, setStudents] = useState<StudentInput[]>([
+    { name: '', email: '', password: 'Student123!', className: 'Class 10 - Section A' }
+  ]);
+
+  // File parsing states
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [parseSuccessMsg, setParseSuccessMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdown(null);
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
-
-  const confirmDelete = async () => {
-    if (!deleteInstId) return;
-    const targetId = deleteInstId;
-    setInstitutions(prev => prev.filter(i => i.id !== targetId));
-    setDeleteInstId(null);
-    try {
-      await deleteDoc(doc(db, 'institutions', targetId));
-      const q = query(collection(db, 'users'), where('institutionId', '==', targetId));
-      const snapshot = await getDocs(q);
-      snapshot.forEach(async (docSnap) => {
-        await deleteDoc(docSnap.ref);
-      });
-    } catch (error: any) {
-      console.error("Error deleting institution:", error);
-      alert(`Failed to delete institution: ${error.message}`);
-    }
-  };
 
   useEffect(() => {
     const q = query(collection(db, 'institutions'));
@@ -81,14 +102,141 @@ export default function Institutions() {
     return () => unsubscribe();
   }, []);
 
+  const confirmDelete = async () => {
+    if (!deleteInstId) return;
+    const targetId = deleteInstId;
+    setInstitutions(prev => prev.filter(i => i.id !== targetId));
+    setDeleteInstId(null);
+    try {
+      await deleteDoc(doc(db, 'institutions', targetId));
+      const q = query(collection(db, 'users'), where('institutionId', '==', targetId));
+      const snapshot = await getDocs(q);
+      snapshot.forEach(async (docSnap) => {
+        await deleteDoc(docSnap.ref);
+      });
+    } catch (error: any) {
+      console.error("Error deleting institution:", error);
+      alert(`Failed to delete institution: ${error.message}`);
+    }
+  };
+
+  // Helper to read uploaded PDF/Excel/CSV file text or buffer
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingFile(true);
+    setParseSuccessMsg(null);
+
+    try {
+      const fileName = file.name;
+      const mimeType = file.type;
+
+      // Read file content as text
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const content = event.target?.result as string || '';
+
+        // Call backend Gemini AI file parser endpoint
+        try {
+          const res = await fetch('/api/ai/parse-roster', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.id || 'demo-token'}`
+            },
+            body: JSON.stringify({
+              fileContent: content,
+              fileName,
+              mimeType
+            })
+          });
+
+          if (!res.ok) throw new Error(`Parse service returned ${res.status}`);
+          const data = await res.json();
+
+          // Auto convert extracted data into manual form rows!
+          if (data.students && Array.isArray(data.students) && data.students.length > 0) {
+            const validParsedStudents = data.students.map((s: any) => ({
+              name: s.name || 'Student Name',
+              email: s.email || 'student@school.edu',
+              password: s.password || 'Student123!',
+              className: s.className || 'Class 10 - Section A'
+            }));
+
+            // Filter out empty placeholder row if present
+            setStudents(prev => {
+              const filteredPrev = prev.filter(st => st.name.trim().length > 0);
+              return [...filteredPrev, ...validParsedStudents];
+            });
+          }
+
+          if (data.teachers && Array.isArray(data.teachers) && data.teachers.length > 0) {
+            const validParsedTeachers = data.teachers.map((t: any) => ({
+              name: t.name || 'Teacher Name',
+              email: t.email || 'teacher@school.edu',
+              password: t.password || 'Teacher123!',
+              subject: t.subject || 'General Subject'
+            }));
+
+            setTeachers(prev => {
+              const filteredPrev = prev.filter(tc => tc.name.trim().length > 0);
+              return [...filteredPrev, ...validParsedTeachers];
+            });
+          }
+
+          const studentCount = data.students?.length || 0;
+          const teacherCount = data.teachers?.length || 0;
+          setParseSuccessMsg(`✨ Successfully converted "${fileName}" into ${studentCount} Student and ${teacherCount} Teacher manual form rows below!`);
+        } catch (apiErr) {
+          console.error("Error calling parse roster API:", apiErr);
+
+          // Local fallback CSV / text line parsing
+          const lines = content.split(/\r?\n/);
+          const newStudents: StudentInput[] = [];
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.toLowerCase().includes('name,')) return;
+            const parts = trimmed.split(/[,;\t]+/);
+            if (parts.length >= 1 && parts[0].length > 1) {
+              newStudents.push({
+                name: parts[0].replace(/["']/g, '').trim(),
+                email: parts[1] ? parts[1].replace(/["']/g, '').trim() : `${parts[0].toLowerCase().replace(/\s+/g, '.')}@school.edu`,
+                password: parts[2] ? parts[2].replace(/["']/g, '').trim() : 'Student123!',
+                className: parts[3] ? parts[3].replace(/["']/g, '').trim() : 'Class 10 - Section A'
+              });
+            }
+          });
+
+          if (newStudents.length > 0) {
+            setStudents(prev => [...prev.filter(s => s.name.trim().length > 0), ...newStudents]);
+            setParseSuccessMsg(`Converted ${newStudents.length} student records from CSV into manual form rows!`);
+          } else {
+            alert("Could not extract records from file. Please ensure text/CSV formatting or fill manual form rows.");
+          }
+        } finally {
+          setIsParsingFile(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+
+      reader.readAsText(file);
+    } catch (err) {
+      console.error("File upload error:", err);
+      alert("Failed to read file.");
+      setIsParsingFile(false);
+    }
+  };
+
+  // Submit School Registration with Teachers & Students
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
+
     setIsSubmitting(true);
     try {
       if (!formData.email || !formData.password) {
-        alert("Email and password are required.");
+        alert("Official Contact Email and Admin Password are required.");
         setIsSubmitting(false);
         return;
       }
@@ -97,41 +245,75 @@ export default function Institutions() {
         setIsSubmitting(false);
         return;
       }
-      
-      const { initializeApp } = await import('firebase/app');
-      const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
-      const { setDoc } = await import('firebase/firestore');
-      const { app } = await import('../../lib/firebase');
-      
-      const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
-      const secondaryAuth = getAuth(secondaryApp);
-      
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
-      
+
+      // Filter valid non-empty teacher and student inputs
+      const validTeachers = teachers.filter(t => t.name.trim() && t.email.trim());
+      const validStudents = students.filter(s => s.name.trim() && s.email.trim());
+
+      // Create Institution Firestore document
       const docRef = await addDoc(collection(db, 'institutions'), {
         ...formData,
         status: 'Active',
-        studentsCount: 0,
-        teachersCount: 0,
+        studentsCount: validStudents.length,
+        teachersCount: validTeachers.length,
         createdBy: user.id,
         createdAt: serverTimestamp()
       });
-      
-      await setDoc(doc(db, 'users', userCred.user.uid), {
+
+      const instId = docRef.id;
+
+      // 1. Create Primary School Admin User Document in Firestore
+      const mainUserRef = doc(collection(db, 'users'));
+      await setDoc(mainUserRef, {
         email: formData.email,
         name: formData.name,
         role: 'INSTITUTION',
-        institutionId: docRef.id
+        institutionId: instId,
+        createdAt: serverTimestamp()
       });
-      
-      await signOut(secondaryAuth);
-      
+
+      // 2. Batch Provision Teachers into Firestore 'users' collection
+      for (const t of validTeachers) {
+        const teacherRef = doc(collection(db, 'users'));
+        await setDoc(teacherRef, {
+          name: t.name,
+          email: t.email,
+          role: 'TEACHER',
+          subject: t.subject || 'General Subject',
+          institutionId: instId,
+          institutionName: formData.name,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      // 3. Batch Provision Students into Firestore 'users' collection
+      for (const s of validStudents) {
+        const studentRef = doc(collection(db, 'users'));
+        await setDoc(studentRef, {
+          name: s.name,
+          email: s.email,
+          role: 'STUDENT',
+          className: s.className || 'Class 10 - Section A',
+          assignedClass: s.className || 'Class 10 - Section A',
+          institutionId: instId,
+          institutionName: formData.name,
+          createdAt: serverTimestamp()
+        });
+      }
+
       setShowForm(false);
-      setFormData({ name: '', address: '', email: '', phone: '', password: '' });
-      alert("Institution registered successfully.");
-    } catch (error) {
-      console.error("Error adding institution:", error);
-      alert("Failed to submit institution. Please check console for details.");
+      setFormData({
+        name: '', address: '', email: '', phone: '', password: '',
+        principalName: '', affiliationCode: '', website: ''
+      });
+      setTeachers([{ name: '', email: '', password: 'Teacher123!', subject: 'Mathematics' }]);
+      setStudents([{ name: '', email: '', password: 'Student123!', className: 'Class 10 - Section A' }]);
+      setParseSuccessMsg(null);
+
+      alert(`🎉 School "${formData.name}" registered successfully!\nProvisioned ${validTeachers.length} Teachers and ${validStudents.length} Students.`);
+    } catch (error: any) {
+      console.error("Error registering institution:", error);
+      alert(`Failed to register school: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +329,7 @@ export default function Institutions() {
     <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader 
         title="Registered Institutions" 
-        description="Comprehensive management of registered campus networks, admin accounts, and status controls."
+        description="Comprehensive management of registered campus networks, admin accounts, and student/teacher rosters."
         badge="Super Admin"
         breadcrumbs={[{ label: 'Super Admin' }, { label: 'Institutions' }]}
         action={
@@ -163,85 +345,362 @@ export default function Institutions() {
       {showForm && (
         <Card className="animate-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-              <Building2 className="w-5 h-5" />
+            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+              <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Register New Institution</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Provision admin credentials and campus profile</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Register New School / Institution</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Add detailed school info, faculty accounts, and student data via PDF/Excel upload or manual form</p>
             </div>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Institution Name</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Springfield High School" 
-                />
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Address</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="Full street address..." 
-                />
-              </div>
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            {/* STEP 1: DETAILED SCHOOL INFORMATION */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                <Building2 className="w-4 h-4" /> 1. Detailed School Information
+              </h3>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Contact Email</label>
-                <input 
-                  type="email" 
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="admin@school.com" 
-                />
-              </div>
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    School / Institution Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition font-medium" 
+                    placeholder="e.g. St. Xavier International Academy" 
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
-                <input 
-                  type="tel" 
-                  required
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="+1 (555) 000-0000" 
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Official Contact Email <span className="text-rose-500">*</span>
+                  </label>
+                  <input 
+                    type="email" 
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="admin@stxavier.edu" 
+                  />
+                </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Account Password</label>
-                <input 
-                  type="password"
-                  minLength={6} 
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="Create a password (min 6 chars)" 
-                />
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Account Admin Password <span className="text-rose-500">*</span>
+                  </label>
+                  <input 
+                    type="password"
+                    minLength={6} 
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="Min 6 characters password" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Phone Number
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="+1 (555) 019-2834" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Principal / Headmaster Name
+                  </label>
+                  <input 
+                    type="text" 
+                    value={formData.principalName}
+                    onChange={(e) => setFormData({...formData, principalName: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. Dr. Arthur Pendelton" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Affiliation / Reg Code
+                  </label>
+                  <input 
+                    type="text" 
+                    value={formData.affiliationCode}
+                    onChange={(e) => setFormData({...formData, affiliationCode: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. CBSE-98123-2026" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    School Website
+                  </label>
+                  <input 
+                    type="text" 
+                    value={formData.website}
+                    onChange={(e) => setFormData({...formData, website: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="https://stxavier.edu" 
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    Campus Address
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="Full campus street address, city, state..." 
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            {/* STEP 2: TEACHERS INFORMATION */}
+            <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                    <UserCheck className="w-4 h-4" /> 2. Faculty / Teachers Roster
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Add teacher accounts manually for this institution</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTeachers(prev => [...prev, { name: '', email: '', password: 'Teacher123!', subject: 'Mathematics' }])}
+                  className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold hover:bg-indigo-100 transition flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Teacher
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {teachers.map((tc, idx) => (
+                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 items-center">
+                    <input 
+                      type="text"
+                      value={tc.name}
+                      onChange={e => {
+                        const updated = [...teachers];
+                        updated[idx].name = e.target.value;
+                        setTeachers(updated);
+                      }}
+                      placeholder="Teacher Name"
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <input 
+                      type="email"
+                      value={tc.email}
+                      onChange={e => {
+                        const updated = [...teachers];
+                        updated[idx].email = e.target.value;
+                        setTeachers(updated);
+                      }}
+                      placeholder="Email"
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <input 
+                      type="text"
+                      value={tc.password}
+                      onChange={e => {
+                        const updated = [...teachers];
+                        updated[idx].password = e.target.value;
+                        setTeachers(updated);
+                      }}
+                      placeholder="Password"
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text"
+                        value={tc.subject}
+                        onChange={e => {
+                          const updated = [...teachers];
+                          updated[idx].subject = e.target.value;
+                          setTeachers(updated);
+                        }}
+                        placeholder="Subject"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      {teachers.length > 1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => setTeachers(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* STEP 3: STUDENTS INFORMATION & PDF/EXCEL FILE PARSER */}
+            <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4" /> 3. Student Roster (PDF, Excel, CSV or Manual Entry)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Upload a PDF, Excel (.xlsx), or CSV student list to automatically convert it into editable manual form rows!
+                </p>
+              </div>
+
+              {/* File Upload Banner */}
+              <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/40 border-2 border-dashed border-indigo-200 dark:border-indigo-900 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl text-indigo-600 dark:text-indigo-400 shadow-sm">
+                    <FileSpreadsheet className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">Auto-Convert PDF or Excel File into Manual Form</h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Supports .pdf, .xlsx, .csv, or plain text student lists with emails and passwords</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    accept=".pdf,.xlsx,.xls,.csv,.txt"
+                    onChange={handleFileUpload}
+                    className="hidden" 
+                    id="roster-file-upload"
+                  />
+                  <label 
+                    htmlFor="roster-file-upload"
+                    className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-sm flex items-center gap-2 ${isParsingFile ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    {isParsingFile ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Converting File...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5" />
+                        Upload PDF / Excel
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {parseSuccessMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    {parseSuccessMsg}
+                  </span>
+                  <button type="button" onClick={() => setParseSuccessMsg(null)} className="p-1 hover:bg-emerald-100 rounded">
+                    <X className="w-3.5 h-3.5 text-emerald-700" />
+                  </button>
+                </div>
+              )}
+
+              {/* Editable Student Rows Manual Table */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
+                  <span>Converted / Manual Student Rows ({students.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => setStudents(prev => [...prev, { name: '', email: '', password: 'Student123!', className: 'Class 10 - Section A' }])}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Student Row
+                  </button>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1">
+                  {students.map((st, idx) => (
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 items-center">
+                      <input 
+                        type="text"
+                        value={st.name}
+                        onChange={e => {
+                          const updated = [...students];
+                          updated[idx].name = e.target.value;
+                          setStudents(updated);
+                        }}
+                        placeholder="Student Full Name"
+                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                      />
+                      <input 
+                        type="email"
+                        value={st.email}
+                        onChange={e => {
+                          const updated = [...students];
+                          updated[idx].email = e.target.value;
+                          setStudents(updated);
+                        }}
+                        placeholder="Email Address"
+                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <input 
+                        type="text"
+                        value={st.password}
+                        onChange={e => {
+                          const updated = [...students];
+                          updated[idx].password = e.target.value;
+                          setStudents(updated);
+                        }}
+                        placeholder="Initial Password"
+                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text"
+                          value={st.className}
+                          onChange={e => {
+                            const updated = [...students];
+                            updated[idx].className = e.target.value;
+                            setStudents(updated);
+                          }}
+                          placeholder="Class - Section"
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        {students.length > 1 && (
+                          <button 
+                            type="button" 
+                            onClick={() => setStudents(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
                 Cancel
               </Button>
               <Button type="submit" isLoading={isSubmitting}>
-                Submit Registration
+                Register School & Provision Accounts
               </Button>
             </div>
           </form>
@@ -300,7 +759,7 @@ export default function Institutions() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                         <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {inst.email}</span>
-                        <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {inst.phone}</span>
+                        <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {inst.phone || 'N/A'}</span>
                         <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400"><Lock className="w-3 h-3 text-slate-400" /> {inst.password || '******'}</span>
                       </div>
                     </td>
