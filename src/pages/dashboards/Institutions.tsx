@@ -7,6 +7,7 @@ import {
 import { collection, query, onSnapshot, deleteDoc, doc, where, getDocs, addDoc, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { PhoneInputWithCountry } from '../../components/ui/PhoneInputWithCountry';
 
 type Institution = {
   id: string;
@@ -48,6 +49,44 @@ export default function Institutions() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [deleteInstId, setDeleteInstId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Edit Institution Modal States
+  const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    address: '',
+    email: '',
+    phone: '',
+    principalName: '',
+    studentsCount: 0,
+    teachersCount: 0,
+    status: 'Active'
+  });
+
+  const handleSaveInstitutionEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInstitution) return;
+    setIsSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'institutions', editingInstitution.id), {
+        name: editForm.name,
+        address: editForm.address,
+        email: editForm.email,
+        phone: editForm.phone,
+        principalName: editForm.principalName,
+        studentsCount: Number(editForm.studentsCount) || 0,
+        teachersCount: Number(editForm.teachersCount) || 0,
+        status: editForm.status
+      });
+      alert("✅ Institution data and student/teacher numbers updated successfully!");
+      setEditingInstitution(null);
+    } catch (err) {
+      console.error("Error updating institution:", err);
+      alert("Failed to update institution details.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Detailed School Information
   const [formData, setFormData] = useState({
@@ -443,15 +482,10 @@ export default function Institutions() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                    Phone Number
-                  </label>
-                  <input 
-                    type="tel" 
+                  <PhoneInputWithCountry
+                    label="Phone Number"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                    placeholder="+1 (555) 019-2834" 
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
                   />
                 </div>
 
@@ -813,9 +847,32 @@ export default function Institutions() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col text-xs">
-                        <span className="font-bold text-slate-900 dark:text-white">{inst.studentsCount || 0} Students</span>
-                        <span className="text-slate-500 dark:text-slate-400">{inst.teachersCount || 0} Teachers</span>
+                      <div 
+                        onClick={() => {
+                          setEditingInstitution(inst);
+                          setEditForm({
+                            name: inst.name || '',
+                            address: inst.address || '',
+                            email: inst.email || '',
+                            phone: inst.phone || '',
+                            principalName: inst.principalName || '',
+                            studentsCount: inst.studentsCount || 0,
+                            teachersCount: inst.teachersCount || 0,
+                            status: inst.status || 'Active'
+                          });
+                        }}
+                        className="flex items-center gap-2 group cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 transition"
+                        title="Click to edit student & teacher counts"
+                      >
+                        <div className="flex flex-col text-xs">
+                          <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                            {inst.studentsCount || 0} Students
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {inst.teachersCount || 0} Teachers
+                          </span>
+                        </div>
+                        <Edit className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -841,7 +898,27 @@ export default function Institutions() {
                       </button>
                       
                       {activeDropdown === inst.id && (
-                        <div className="absolute right-6 top-12 w-44 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-20 space-y-1 p-1">
+                        <div className="absolute right-6 top-12 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-20 space-y-1 p-1">
+                          <button 
+                            className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2 transition"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdown(null);
+                              setEditingInstitution(inst);
+                              setEditForm({
+                                name: inst.name || '',
+                                address: inst.address || '',
+                                email: inst.email || '',
+                                phone: inst.phone || '',
+                                principalName: inst.principalName || '',
+                                studentsCount: inst.studentsCount || 0,
+                                teachersCount: inst.teachersCount || 0,
+                                status: inst.status || 'Active'
+                              });
+                            }}
+                          >
+                            <Edit className="w-3.5 h-3.5 text-indigo-500" /> Edit Counts & Details
+                          </button>
                           <button 
                             className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2 transition"
                             onClick={async (e) => {
@@ -926,6 +1003,129 @@ export default function Institutions() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteInstId(null)}
       />
+
+      {/* Edit Institution & Student/Teacher Counts Modal */}
+      {editingInstitution && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Edit Institution & Student/Teacher Data</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Update capacity numbers, contact details & governance status</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingInstitution(null)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInstitutionEdit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Institution Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={e => setEditForm({...editForm, name: e.target.value})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> No. of Students
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editForm.studentsCount}
+                    onChange={e => setEditForm({...editForm, studentsCount: Number(e.target.value)})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/50 font-bold text-sm text-indigo-900 dark:text-indigo-200 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1 flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5" /> No. of Teachers
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editForm.teachersCount}
+                    onChange={e => setEditForm({...editForm, teachersCount: Number(e.target.value)})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/50 font-bold text-sm text-indigo-900 dark:text-indigo-200 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={e => setEditForm({...editForm, status: e.target.value})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Principal Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.principalName}
+                    onChange={e => setEditForm({...editForm, principalName: e.target.value})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Official Email
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={e => setEditForm({...editForm, email: e.target.value})}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <PhoneInputWithCountry
+                    label="Phone Contact"
+                    value={editForm.phone}
+                    onChange={(val) => setEditForm(prev => ({ ...prev, phone: val }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button type="button" variant="ghost" onClick={() => setEditingInstitution(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isSubmitting}>
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

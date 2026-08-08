@@ -220,37 +220,33 @@ export default function LoginPage() {
         }
       }
 
-      userPayload.status = signUpRole === 'INSTITUTION' ? 'Active' : 'Pending';
+      userPayload.status = 'Pending';
 
       await setDoc(doc(db, 'users', uid), userPayload);
 
-      // Create Registration Request for Institution Approval (only for students/teachers)
-      if (signUpRole !== 'INSTITUTION') {
-        try {
-          const reqRef = doc(collection(db, 'registration_requests'));
-          await setDoc(reqRef, {
-            id: reqRef.id,
-            uid: uid,
-            name: signUpName.trim(),
-            email: signUpEmail.trim(),
-            role: signUpRole,
-            institutionId: matchedInst.id,
-            institutionName: matchedInst.name || 'Campus OS Partner',
-            classId: matchedClass?.id || null,
-            className: matchedClass?.fullTitle || matchedClass?.className || null,
-            subject: signUpRole === 'TEACHER' ? (signUpSubject.trim() || 'General Subject') : null,
-            institutionCode: cleanInstCode,
-            classCode: cleanClassCode || null,
-            status: 'Pending',
-            createdAt: serverTimestamp()
-          });
-        } catch (reqErr) {
-          console.warn("Error creating registration_request doc:", reqErr);
-        }
-        setSuccessMsg(`🎉 Application submitted! A sign-up request has been sent to ${matchedInst.name}. An administrator will review and accept your application shortly.`);
-      } else {
-        setSuccessMsg(`🎉 Institution Account successfully linked to ${matchedInst.name}! You can now sign in to your dashboard.`);
+      // Create Registration Request for Institution Approval
+      try {
+        const reqRef = doc(collection(db, 'registration_requests'));
+        await setDoc(reqRef, {
+          id: reqRef.id,
+          uid: uid,
+          name: signUpName.trim(),
+          email: signUpEmail.trim(),
+          role: signUpRole,
+          institutionId: matchedInst.id,
+          institutionName: matchedInst.name || 'Campus OS Partner',
+          classId: matchedClass?.id || null,
+          className: matchedClass?.fullTitle || matchedClass?.className || null,
+          subject: signUpRole === 'TEACHER' ? (signUpSubject.trim() || 'General Subject') : null,
+          institutionCode: cleanInstCode,
+          classCode: cleanClassCode || null,
+          status: 'Pending',
+          createdAt: serverTimestamp()
+        });
+      } catch (reqErr) {
+        console.warn("Error creating registration_request doc:", reqErr);
       }
+      setSuccessMsg(`🎉 Application submitted! A sign-up request has been sent to ${matchedInst.name}. An administrator will review and accept your application shortly.`);
     } catch (err: any) {
       console.error("Sign up error:", err);
       if (err.code === 'auth/email-already-in-use') {
@@ -415,7 +411,7 @@ export default function LoginPage() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
                   I am signing up as a:
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setSignUpRole('STUDENT')}
@@ -447,23 +443,6 @@ export default function LoginPage() {
                     </div>
                     <div>
                       <span className="block text-xs font-extrabold">Teacher</span>
-                    </div>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setSignUpRole('INSTITUTION')}
-                    className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                      signUpRole === 'INSTITUTION'
-                        ? 'border-indigo-500 bg-indigo-950/60 text-white shadow-lg shadow-indigo-950/50'
-                        : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className={`p-2 rounded-xl ${signUpRole === 'INSTITUTION' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-extrabold">Institution</span>
                     </div>
                   </button>
                 </div>

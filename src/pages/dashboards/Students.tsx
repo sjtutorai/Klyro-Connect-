@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
-import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Lock, Phone, CheckCircle2, XCircle } from 'lucide-react';
-import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
+import { GraduationCap, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Lock, Phone, CheckCircle2, XCircle, FileSpreadsheet, FileText, Upload, Sparkles, UserCheck, Users } from 'lucide-react';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { PhoneInputWithCountry } from '../../components/ui/PhoneInputWithCountry';
 
 type Student = {
   id: string;
@@ -18,15 +19,31 @@ type Student = {
   createdAt: any;
 };
 
+type ParsedStudent = {
+  name: string;
+  email: string;
+  password: string;
+  assignedClass: string;
+  rollNumber?: string;
+};
+
 export default function Students() {
   const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [addMode, setAddMode] = useState<'manual' | 'excel' | 'pdf'>('manual');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // File parsing states
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [parsedStudents, setParsedStudents] = useState<ParsedStudent[]>([]);
+  const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const excelInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -37,6 +54,23 @@ export default function Students() {
     rollNumber: ''
   });
 
+  const syncInstitutionStudentCount = async (delta: number) => {
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId) return;
+    try {
+      const instRef = doc(db, 'institutions', instId);
+      const instSnap = await getDoc(instRef);
+      if (instSnap.exists()) {
+        const currentCount = instSnap.data().studentsCount || 0;
+        await updateDoc(instRef, {
+          studentsCount: Math.max(0, currentCount + delta)
+        });
+      }
+    } catch (e) {
+      console.warn("Could not sync institution student count:", e);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteStudentId) return;
     const targetId = deleteStudentId;
@@ -44,6 +78,7 @@ export default function Students() {
     setDeleteStudentId(null);
     try {
       await deleteDoc(doc(db, 'users', targetId));
+      await syncInstitutionStudentCount(-1);
     } catch (error) {
       console.error("Error deleting student:", error);
       alert("Failed to delete student from database.");
@@ -197,12 +232,125 @@ export default function Students() {
         await setDoc(newRef, studentDoc);
       }
       
+      await syncInstitutionStudentCount(1);
       setShowForm(false);
       setFormData({ name: '', email: '', assignedClass: '', password: '', phone: '', rollNumber: '' });
       alert(`Student profile created successfully! Student ID: ${finalRollNumber}`);
     } catch (error: any) {
       console.error("Error adding student:", error);
       alert(`Error creating student profile: ${error?.message || "Please check details and try again."}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFileUploadAndParse = async (file: File) => {
+    if (!file) return;
+    setIsParsingFile(true);
+    setParseMsg(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+        try {
+          const res = await fetch('/api/ai/parse-roster', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.id || 'demo-token'}`
+            },
+            body: JSON.stringify({
+              fileContent: content,
+              fileName: file.name,
+              mimeType: file.type || 'text/plain'
+            })
+          });
+
+          if (!res.ok) throw new Error('API parse failed');
+          const data = await res.json();
+          let extracted: ParsedStudent[] = [];
+
+          if (data.students && Array.isArray(data.students) && data.students.length > 0) {
+            extracted = data.students.map((s: any) => ({
+              name: s.name || 'Student Name',
+              email: s.email || 'student@school.edu',
+              password: s.password || 'Student123!',
+              assignedClass: s.className || s.assignedClass || 'Class 10 - Section A',
+              rollNumber: s.rollNumber || `STU-${Math.floor(1000 + Math.random() * 9000)}`
+            }));
+          } else {
+            // Local fallback text/csv line parsing
+            const lines = content.split(/\r?\n/);
+            lines.forEach((line) => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.toLowerCase().includes('email')) return;
+              const parts = trimmed.split(/[,;\t]+/);
+              if (parts.length >= 1 && parts[0].length > 2) {
+                extracted.push({
+                  name: parts[0].replace(/["']/g, '').trim(),
+                  email: parts[1] ? parts[1].replace(/["']/g, '').trim() : `${parts[0].toLowerCase().replace(/\s+/g, '.')}@school.edu`,
+                  password: parts[2] ? parts[2].replace(/["']/g, '').trim() : 'Student123!',
+                  assignedClass: parts[3] ? parts[3].replace(/["']/g, '').trim() : 'Class 10 - Section A',
+                  rollNumber: parts[4] ? parts[4].replace(/["']/g, '').trim() : `STU-${Math.floor(1000 + Math.random() * 9000)}`
+                });
+              }
+            });
+          }
+
+          if (extracted.length > 0) {
+            setParsedStudents(extracted);
+            setParseMsg(`✨ AI extracted ${extracted.length} student records from "${file.name}". Review or modify below before importing!`);
+          } else {
+            alert(`No student records found in ${file.name}. Please ensure your file has Name, Email, Password, and Class columns.`);
+          }
+        } catch (err) {
+          console.error(err);
+          alert(`Error processing ${file.name}. Please ensure file content is valid.`);
+        } finally {
+          setIsParsingFile(false);
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      setIsParsingFile(false);
+    }
+  };
+
+  const handleImportParsedStudents = async () => {
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId || parsedStudents.length === 0) return;
+
+    setIsSubmitting(true);
+    try {
+      let count = 0;
+      for (const ps of parsedStudents) {
+        if (!ps.name.trim() || !ps.email.trim()) continue;
+        const newRef = doc(collection(db, 'users'));
+        const rollNum = ps.rollNumber || `STU-${Math.floor(1000 + Math.random() * 9000)}`;
+        await setDoc(newRef, {
+          email: ps.email.trim(),
+          name: ps.name.trim(),
+          role: 'STUDENT',
+          institutionId: instId,
+          assignedClass: ps.assignedClass || 'Class 10 - Section A',
+          rollNumber: rollNum,
+          password: ps.password || 'Student123!',
+          status: 'Active',
+          createdAt: serverTimestamp()
+        });
+        count++;
+      }
+
+      await syncInstitutionStudentCount(count);
+      alert(`🎉 Successfully imported ${count} student accounts into the institution!`);
+      setParsedStudents([]);
+      setParseMsg(null);
+      setShowForm(false);
+    } catch (err) {
+      console.error("Error importing students:", err);
+      alert("Failed to import students.");
     } finally {
       setIsSubmitting(false);
     }
@@ -233,88 +381,281 @@ export default function Students() {
 
       {showForm && (
         <Card className="animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-              <GraduationCap className="w-5 h-5" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Enroll Student Profile</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Add manually or bulk import via Excel / PDF form</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Enroll Student Profile</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Assign roll number, class section & credentials</p>
+
+            {/* Mode selection tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setAddMode('manual')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'manual' 
+                    ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Edit className="w-3.5 h-3.5" /> Manually
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('excel')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'excel' 
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Excel Form
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('pdf')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'pdf' 
+                    ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" /> PDF Form
+              </button>
             </div>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Alex Johnson" 
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Student ID / Roll Number</label>
-                <input 
-                  type="text"
-                  value={formData.rollNumber}
-                  onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. STU-1002 (Optional: Leave blank to auto-generate)" 
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Leave blank to auto-generate a unique Student ID.</p>
+          {addMode === 'manual' ? (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="grid md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. Alex Johnson" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Student ID / Roll Number</label>
+                  <input 
+                    type="text"
+                    value={formData.rollNumber}
+                    onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. STU-1002 (Optional: Leave blank to auto-generate)" 
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Leave blank to auto-generate a unique Student ID.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="student@school.com" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                  <input 
+                    type="password"
+                    minLength={6} 
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="Create a password" 
+                  />
+                </div>
+
+                <div>
+                  <PhoneInputWithCountry
+                    label="Parent / Contact Phone"
+                    value={formData.phone}
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Assigned Class & Section</label>
+                  <input 
+                    type="text"
+                    required
+                    value={formData.assignedClass}
+                    onChange={(e) => setFormData({...formData, assignedClass: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. Class 10 - Section A" 
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isSubmitting}>
+                  Enroll Student
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              {/* Dropzone */}
+              <div 
+                onClick={() => (addMode === 'excel' ? excelInputRef.current?.click() : pdfInputRef.current?.click())}
+                className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 bg-slate-50 dark:bg-slate-950 rounded-2xl p-8 text-center cursor-pointer transition group"
+              >
                 <input 
-                  type="email" 
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="student@school.com" 
+                  type="file" 
+                  ref={excelInputRef} 
+                  onChange={(e) => e.target.files?.[0] && handleFileUploadAndParse(e.target.files[0])}
+                  accept=".csv,.xlsx,.xls,.txt" 
+                  className="hidden" 
                 />
+                <input 
+                  type="file" 
+                  ref={pdfInputRef} 
+                  onChange={(e) => e.target.files?.[0] && handleFileUploadAndParse(e.target.files[0])}
+                  accept=".pdf" 
+                  className="hidden" 
+                />
+
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                  {addMode === 'excel' ? <FileSpreadsheet className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                  Upload {addMode === 'excel' ? 'Excel / CSV Student Roster' : 'PDF Student Directory'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                  Click to select file or drag & drop. AI will automatically extract student names, emails, and assigned classes.
+                </p>
+
+                {isParsingFile && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-xs text-emerald-600 font-semibold animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin" /> AI parsing student roster...
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
-                <input 
-                  type="password"
-                  minLength={6} 
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="Create a password" 
-                />
-              </div>
+              {parseMsg && (
+                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-600" />
+                  {parseMsg}
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Parent / Contact Phone</label>
-                <input 
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="+1 (555) 000-0000" 
-                />
-              </div>
+              {/* Parsed List Table */}
+              {parsedStudents.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Extracted Student Records ({parsedStudents.length})
+                    </h4>
+                    <Button 
+                      size="sm" 
+                      onClick={handleImportParsedStudents} 
+                      isLoading={isSubmitting}
+                      icon={<UserCheck className="w-4 h-4" />}
+                    >
+                      Import All ({parsedStudents.length}) Students to System
+                    </Button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800/60 font-bold text-slate-700 dark:text-slate-300">
+                        <tr>
+                          <th className="p-3">#</th>
+                          <th className="p-3">Full Name</th>
+                          <th className="p-3">Email Address</th>
+                          <th className="p-3">Assigned Class</th>
+                          <th className="p-3">Roll / ID</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {parsedStudents.map((ps, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="p-3 text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={ps.name} 
+                                onChange={e => {
+                                  const updated = [...parsedStudents];
+                                  updated[idx].name = e.target.value;
+                                  setParsedStudents(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="email" 
+                                value={ps.email} 
+                                onChange={e => {
+                                  const updated = [...parsedStudents];
+                                  updated[idx].email = e.target.value;
+                                  setParsedStudents(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={ps.assignedClass} 
+                                onChange={e => {
+                                  const updated = [...parsedStudents];
+                                  updated[idx].assignedClass = e.target.value;
+                                  setParsedStudents(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={ps.rollNumber || ''} 
+                                onChange={e => {
+                                  const updated = [...parsedStudents];
+                                  updated[idx].rollNumber = e.target.value;
+                                  setParsedStudents(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-mono" 
+                              />
+                            </td>
+                            <td className="p-3 text-right">
+                              <button 
+                                onClick={() => setParsedStudents(parsedStudents.filter((_, i) => i !== idx))}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" isLoading={isSubmitting}>
-                Add Student
-              </Button>
-            </div>
-          </form>
+          )}
         </Card>
       )}
 

@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
+import { PhoneInputWithCountry } from '../components/ui/PhoneInputWithCountry';
 
 export default function LandingPage() {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -430,14 +431,11 @@ export default function LandingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number</label>
-                  <input 
-                    type="tel" 
-                    required
+                  <PhoneInputWithCountry
+                    label="Phone Number"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 outline-none text-sm text-white placeholder-slate-500" 
-                    placeholder="+1 (555) 000-0000" 
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    required
                   />
                 </div>
 

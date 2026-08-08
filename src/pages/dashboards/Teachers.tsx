@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PageHeader, ConfirmModal, Card, Button, Badge } from '../../components/ui';
-import { Users, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Phone, Lock, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
-import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
+import { Users, Plus, Search, Loader2, Edit, Trash2, BookOpen, Check, Mail, Phone, Lock, Sparkles, CheckCircle2, XCircle, Upload, FileSpreadsheet, FileText, UserCheck } from 'lucide-react';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, where, serverTimestamp, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { PhoneInputWithCountry } from '../../components/ui/PhoneInputWithCountry';
 
 type Teacher = {
   id: string;
@@ -17,15 +18,31 @@ type Teacher = {
   createdAt: any;
 };
 
+type ParsedTeacher = {
+  name: string;
+  email: string;
+  password: string;
+  subject: string;
+  phone?: string;
+};
+
 export default function Teachers() {
   const { user } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [addMode, setAddMode] = useState<'manual' | 'excel' | 'pdf'>('manual');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTeacherId, setDeleteTeacherId] = useState<string | null>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // File parsing states
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [parsedTeachers, setParsedTeachers] = useState<ParsedTeacher[]>([]);
+  const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const excelInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -36,6 +53,23 @@ export default function Teachers() {
     password: ''
   });
 
+  const syncInstitutionTeacherCount = async (delta: number) => {
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId) return;
+    try {
+      const instRef = doc(db, 'institutions', instId);
+      const instSnap = await getDoc(instRef);
+      if (instSnap.exists()) {
+        const currentCount = instSnap.data().teachersCount || 0;
+        await updateDoc(instRef, {
+          teachersCount: Math.max(0, currentCount + delta)
+        });
+      }
+    } catch (e) {
+      console.warn("Could not sync institution teacher count:", e);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTeacherId) return;
     const targetId = deleteTeacherId;
@@ -43,6 +77,7 @@ export default function Teachers() {
     setDeleteTeacherId(null);
     try {
       await deleteDoc(doc(db, 'users', targetId));
+      await syncInstitutionTeacherCount(-1);
     } catch (error) {
       console.error("Error deleting teacher:", error);
       alert("Failed to delete teacher from database.");
@@ -193,12 +228,125 @@ export default function Teachers() {
         await setDoc(newRef, teacherDoc);
       }
       
+      await syncInstitutionTeacherCount(1);
       setShowForm(false);
       setFormData({ name: '', email: '', phone: '', subject: '', assignedClasses: '', password: '' });
       alert("Teacher registered successfully.");
     } catch (error: any) {
       console.error("Error adding teacher:", error);
       alert(`Error registering teacher: ${error?.message || "Please try again."}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFileUploadAndParse = async (file: File) => {
+    if (!file) return;
+    setIsParsingFile(true);
+    setParseMsg(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+        try {
+          const res = await fetch('/api/ai/parse-roster', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.id || 'demo-token'}`
+            },
+            body: JSON.stringify({
+              fileContent: content,
+              fileName: file.name,
+              mimeType: file.type || 'text/plain'
+            })
+          });
+
+          if (!res.ok) throw new Error('API parse failed');
+          const data = await res.json();
+          let extracted: ParsedTeacher[] = [];
+
+          if (data.teachers && Array.isArray(data.teachers) && data.teachers.length > 0) {
+            extracted = data.teachers.map((t: any) => ({
+              name: t.name || 'Faculty Member',
+              email: t.email || 'teacher@school.edu',
+              password: t.password || 'Teacher123!',
+              subject: t.subject || 'General',
+              phone: t.phone || ''
+            }));
+          } else {
+            // Local fallback text/csv line parsing
+            const lines = content.split(/\r?\n/);
+            lines.forEach((line) => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.toLowerCase().includes('email')) return;
+              const parts = trimmed.split(/[,;\t]+/);
+              if (parts.length >= 1 && parts[0].length > 2) {
+                extracted.push({
+                  name: parts[0].replace(/["']/g, '').trim(),
+                  email: parts[1] ? parts[1].replace(/["']/g, '').trim() : `${parts[0].toLowerCase().replace(/\s+/g, '.')}@school.edu`,
+                  password: parts[2] ? parts[2].replace(/["']/g, '').trim() : 'Teacher123!',
+                  subject: parts[3] ? parts[3].replace(/["']/g, '').trim() : 'General',
+                  phone: parts[4] ? parts[4].replace(/["']/g, '').trim() : ''
+                });
+              }
+            });
+          }
+
+          if (extracted.length > 0) {
+            setParsedTeachers(extracted);
+            setParseMsg(`✨ AI extracted ${extracted.length} faculty profiles from "${file.name}". Review or edit below before importing!`);
+          } else {
+            alert(`No faculty records found in ${file.name}. Please ensure your file has Name, Email, Password, and Subject columns.`);
+          }
+        } catch (err) {
+          console.error(err);
+          alert(`Error processing ${file.name}. Please ensure file content is valid.`);
+        } finally {
+          setIsParsingFile(false);
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      setIsParsingFile(false);
+    }
+  };
+
+  const handleImportParsedTeachers = async () => {
+    const instId = user?.institutionId || (user?.role === 'INSTITUTION' ? user?.id : null);
+    if (!instId || parsedTeachers.length === 0) return;
+
+    setIsSubmitting(true);
+    try {
+      let count = 0;
+      for (const pt of parsedTeachers) {
+        if (!pt.name.trim() || !pt.email.trim()) continue;
+        const newRef = doc(collection(db, 'users'));
+        await setDoc(newRef, {
+          email: pt.email.trim(),
+          name: pt.name.trim(),
+          role: 'TEACHER',
+          institutionId: instId,
+          phone: pt.phone || '',
+          subject: pt.subject || 'General',
+          assignedClasses: 'Unassigned',
+          password: pt.password || 'Teacher123!',
+          status: 'Active',
+          createdAt: serverTimestamp()
+        });
+        count++;
+      }
+
+      await syncInstitutionTeacherCount(count);
+      alert(`🎉 Successfully imported ${count} faculty accounts into the institution!`);
+      setParsedTeachers([]);
+      setParseMsg(null);
+      setShowForm(false);
+    } catch (err) {
+      console.error("Error importing teachers:", err);
+      alert("Failed to import teachers.");
     } finally {
       setIsSubmitting(false);
     }
@@ -230,89 +378,270 @@ export default function Teachers() {
 
       {showForm && (
         <Card className="animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-              <Users className="w-5 h-5" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Register Faculty Member</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Add manually or bulk import via Excel / PDF form</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Register Faculty Member</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Set credentials and assign specific classes/sections</p>
+
+            {/* Mode selection tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setAddMode('manual')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'manual' 
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Edit className="w-3.5 h-3.5" /> Manually
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('excel')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'excel' 
+                    ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Excel Form
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('pdf')}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                  addMode === 'pdf' 
+                    ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" /> PDF Form
+              </button>
             </div>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Dr. Sarah Jenkins" 
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Subject / Specialty</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.subject}
-                  onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="e.g. Mathematics, Physics, English" 
-                />
+          {addMode === 'manual' ? (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="grid md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. Dr. Sarah Jenkins" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Subject / Specialty</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.subject}
+                    onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="e.g. Mathematics, Physics, English" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="teacher@school.com" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    minLength={6}
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                    placeholder="Create a password" 
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <PhoneInputWithCountry
+                    label="Phone Number"
+                    value={formData.phone}
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    required
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isSubmitting}>
+                  Add Teacher
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              {/* Dropzone */}
+              <div 
+                onClick={() => (addMode === 'excel' ? excelInputRef.current?.click() : pdfInputRef.current?.click())}
+                className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 bg-slate-50 dark:bg-slate-950 rounded-2xl p-8 text-center cursor-pointer transition group"
+              >
                 <input 
-                  type="email" 
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="teacher@school.com" 
+                  type="file" 
+                  ref={excelInputRef} 
+                  onChange={(e) => e.target.files?.[0] && handleFileUploadAndParse(e.target.files[0])}
+                  accept=".csv,.xlsx,.xls,.txt" 
+                  className="hidden" 
                 />
+                <input 
+                  type="file" 
+                  ref={pdfInputRef} 
+                  onChange={(e) => e.target.files?.[0] && handleFileUploadAndParse(e.target.files[0])}
+                  accept=".pdf" 
+                  className="hidden" 
+                />
+
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                  {addMode === 'excel' ? <FileSpreadsheet className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                  Upload {addMode === 'excel' ? 'Excel / CSV Roster Sheet' : 'PDF Faculty Directory'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                  Click to select file or drag & drop. AI will automatically extract faculty names, subjects, and emails.
+                </p>
+
+                {isParsingFile && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-xs text-indigo-600 font-semibold animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin" /> AI parsing faculty data...
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password</label>
-                <input 
-                  type="password"
-                  minLength={6} 
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="Create a password" 
-                />
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
-                <input 
-                  type="tel" 
-                  required
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
-                  placeholder="+1 (555) 000-0000" 
-                />
-              </div>
+              {parseMsg && (
+                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-600" />
+                  {parseMsg}
+                </div>
+              )}
+
+              {/* Parsed List Table */}
+              {parsedTeachers.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Extracted Faculty Members ({parsedTeachers.length})
+                    </h4>
+                    <Button 
+                      size="sm" 
+                      onClick={handleImportParsedTeachers} 
+                      isLoading={isSubmitting}
+                      icon={<UserCheck className="w-4 h-4" />}
+                    >
+                      Import All ({parsedTeachers.length}) Faculty to System
+                    </Button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800/60 font-bold text-slate-700 dark:text-slate-300">
+                        <tr>
+                          <th className="p-3">#</th>
+                          <th className="p-3">Full Name</th>
+                          <th className="p-3">Email Address</th>
+                          <th className="p-3">Subject</th>
+                          <th className="p-3">Password</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {parsedTeachers.map((pt, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="p-3 text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={pt.name} 
+                                onChange={e => {
+                                  const updated = [...parsedTeachers];
+                                  updated[idx].name = e.target.value;
+                                  setParsedTeachers(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="email" 
+                                value={pt.email} 
+                                onChange={e => {
+                                  const updated = [...parsedTeachers];
+                                  updated[idx].email = e.target.value;
+                                  setParsedTeachers(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={pt.subject} 
+                                onChange={e => {
+                                  const updated = [...parsedTeachers];
+                                  updated[idx].subject = e.target.value;
+                                  setParsedTeachers(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-medium" 
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input 
+                                type="text" 
+                                value={pt.password} 
+                                onChange={e => {
+                                  const updated = [...parsedTeachers];
+                                  updated[idx].password = e.target.value;
+                                  setParsedTeachers(updated);
+                                }}
+                                className="w-full px-2 py-1 bg-transparent border border-slate-200 dark:border-slate-700 rounded text-xs font-mono" 
+                              />
+                            </td>
+                            <td className="p-3 text-right">
+                              <button 
+                                onClick={() => setParsedTeachers(parsedTeachers.filter((_, i) => i !== idx))}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" isLoading={isSubmitting}>
-                Add Teacher
-              </Button>
-            </div>
-          </form>
+          )}
         </Card>
       )}
 
@@ -365,12 +694,10 @@ export default function Teachers() {
                 <p className="text-[11px] text-slate-400 mt-1">Teachers only see students matching these assigned classes.</p>
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
-                <input 
-                  type="text" 
-                  value={editingTeacher.phone}
-                  onChange={e => setEditingTeacher({...editingTeacher, phone: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:border-indigo-500 text-sm outline-none transition" 
+                <PhoneInputWithCountry
+                  label="Phone Number"
+                  value={editingTeacher.phone || ''}
+                  onChange={(val) => setEditingTeacher(prev => prev ? { ...prev, phone: val } : null)}
                 />
               </div>
               <div>
